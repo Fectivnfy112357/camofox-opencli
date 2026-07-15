@@ -1,0 +1,46 @@
+services:
+  camofox:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: camofox
+    restart: unless-stopped
+
+    ports:
+      - "9377:9377"
+      - "6080:6080"
+      - "19825:19825"
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    environment:
+      # Camofox
+      CAMOFOX_HOST: "0.0.0.0"
+      CAMOFOX_PORT: "9377"
+      CAMOFOX_AUTH_MODE: "auto"
+      CAMOFOX_API_KEY: "my_secret_api_key_123"
+      CAMOFOX_VNC_TIMEOUT_MS: "600000"
+      ENABLE_VNC: "1"
+      VNC_PASSWORD: "my_vnc_password"
+      PROXY_HOST: "host.docker.internal"
+      PROXY_PORT: "20172"
+      CAMOFOX_ALLOW_PRIVATE_NETWORK: "true"
+      # Shim
+      CAMOFOX_URL: "http://localhost:9377"
+      CAMOFOX_USER_ID: "fectivnfy"
+      SHIM_PORT: "19825"
+
+    shm_size: "2gb"
+    security_opt:
+      - seccomp=unconfined
+    volumes:
+      - camofox_data:/home/node/.camofox
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9377/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  camofox_data:

@@ -1,0 +1,53 @@
+# ─── Stage 1: Build OpenCLI CLI ──────────────────────────────────
+FROM node:22-slim AS opencli-build
+
+WORKDIR /app
+COPY opencli/package.json opencli/package-lock.json ./
+RUN npm ci
+COPY opencli/ ./
+RUN npm run build
+
+# ─── Stage 2: Build Camofox Shim ──────────────────────────────────
+FROM node:22-slim AS shim-build
+
+WORKDIR /app
+COPY camofox-shim/package.json camofox-shim/package-lock.json ./
+RUN npm ci
+COPY camofox-shim/ ./
+RUN npx tsc
+
+# ─── Stage 3: Final image ─────────────────────────────────────────
+FROM ghcr.io/redf0x1/camofox-browser:latest
+
+# Switch to root — base image runs as 'node' user
+USER root
+
+# supervisord for multi-process management
+RUN apt-get update && apt-get install -y supervisor && rm -rf /var/lib/apt/lists/*
+
+# ── Entrypoint wrapper — runs camofox's compiled server.js ──
+COPY camofox-browser/entrypoint-camofox.sh /app/entrypoint-camofox.sh
+RUN chmod +x /app/entrypoint-camofox.sh
+
+# ── Install OpenCLI globally ──────────────────────────────────────
+COPY --from=opencli-build /app/dist /opt/opencli/dist
+COPY --from=opencli-build /app/node_modules /opt/opencli/node_modules
+COPY --from=opencli-build /app/clis /opt/opencli/clis
+COPY --from=opencli-build /app/skills /opt/opencli/skills
+COPY --from=opencli-build /app/cli-manifest.json /opt/opencli/
+COPY --from=opencli-build /app/package.json /opt/opencli/
+RUN ln -s /opt/opencli/dist/src/main.js /usr/local/bin/opencli
+
+# ── Install Shim ──────────────────────────────────────────────────
+COPY --from=shim-build /app/dist /opt/shim/dist
+COPY --from=shim-build /app/node_modules /opt/shim/node_modules
+COPY --from=shim-build /app/package.json /opt/shim/
+
+# ── Supervisor config ─────────────────────────────────────────────
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+ENV CAMOFOX_URL=http://localhost:9377
+ENV SHIM_PORT=19825
+
+EXPOSE 9377 6080 19825
+CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
