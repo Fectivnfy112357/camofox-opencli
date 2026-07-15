@@ -4,6 +4,8 @@
 
 Camofox + OpenCLI — 将 163+ 站点适配器搬上云端，通过 [Camofox](https://github.com/jo-inc/camofox-browser) 反检测浏览器 + [Shim](https://github.com/Fectivnfy112357/camofox-shim) 桥接层，一个 Docker 容器全搞定。
 
+> OpenCLI cloudified — bridge the browser backend to Camofox. Anti-detection + VNC remote login makes anti-scraping obsolete; OpenCLI adapters fetch structured platform data from Camofox.
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 [![Built with Docker](https://img.shields.io/badge/Built%20with-Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
 [![Node.js 22](https://img.shields.io/badge/Node.js-22-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
