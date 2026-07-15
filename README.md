@@ -1,115 +1,115 @@
 # Camofox · OpenCLI ☤
 
-Camofox + OpenCLI — 将 163+ 站点适配器搬上云端，通过 [Camofox](https://github.com/jo-inc/camofox-browser) 反检测浏览器 + [Shim](https://github.com/Fectivnfy112357/camofox-shim) 桥接层，一个 Docker 容器全搞定。
+Camofox + OpenCLI — 163+ website adapters in the cloud. One Docker container combining [Camofox](https://github.com/jo-inc/camofox-browser) anti-detection browser + [Shim](https://github.com/Fectivnfy112357/camofox-shim) bridge layer.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 [![Built with Docker](https://img.shields.io/badge/Built%20with-Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
 [![Node.js 22](https://img.shields.io/badge/Node.js-22-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
-[![中文](https://img.shields.io/badge/Lang-中文-red?style=for-the-badge)](README.md)
+[![中文](https://img.shields.io/badge/Lang-中文-red?style=for-the-badge)](README.zh-CN.md)
 
-## 云端 OpenCLI + VNC 远程登录
+## Cloud OpenCLI + VNC Remote Login
 
-OpenCLI 原生跑在桌面端——你的笔记本上开个 Chrome 浏览器，本地 daemon 通过 Chrome Extension 控制它。这套方案离开你的电脑就动不了。
+OpenCLI runs natively on your desktop — a Chrome browser on your laptop, a local daemon controlling it via Chrome Extension. It stops working the moment you close your laptop.
 
-Camofox Stack 把它搬上云端：
+Camofox · OpenCLI moves it to the cloud:
 
 ```
-你的电脑                云端服务器
-─────────              ─────────────
-                         ┌──────────────────────────────┐
-                         │   Docker 容器                 │
-                         │                              │
-  opencli zhihu          │   OpenCLI Daemon             │
-  search 'AI agent'  ───▶   (:19825)                    │
-                         │        │                     │
-                         │        │ WebSocket           │
-                         │        ▼                     │
-                         │   Camofox Shim               │
-                         │        │                     │
-                         │        │ REST API            │
-                         │        ▼                     │
-                         │   Camofox Firefox 浏览器      │
-                         │   (:9377)                    │
-                         │                              │
-  浏览器打开              │   VNC 远程桌面 (:6080)       │
-  noVNC 链接 ──────────▶  │   ← 扫码登录，Cookie 持久化  │
-                         │                              │
-                         └──────────────────────────────┘
+Your computer            Cloud server
+───────────              ─────────────
+                           ┌──────────────────────────────┐
+                           │   Docker container            │
+                           │                              │
+  opencli zhihu            │   OpenCLI Daemon             │
+  search 'AI agent'  ─────▶   (:19825)                    │
+                           │        │                     │
+                           │        │ WebSocket           │
+                           │        ▼                     │
+                           │   Camofox Shim               │
+                           │        │                     │
+                           │        │ REST API            │
+                           │        ▼                     │
+                           │   Camofox Firefox browser    │
+                           │   (:9377)                    │
+                           │                              │
+  Open noVNC link          │   VNC remote desktop (:6080) │
+  in browser ─────────────▶  ← scan QR, cookies persist   │
+                           │                              │
+                           └──────────────────────────────┘
 ```
 
-**登录一次，永远在线。** 通过 noVNC 远程打开知乎/小红书/闲鱼，扫码登录后 Cookie 写入 Docker Volume。之后无论容器重启还是重建，所有 `opencli` 命令自动携带登录态。
+**Log in once, always online.** Open Zhihu/Xiaohongshu/Xianyu via noVNC, scan the QR code once, and the cookies are written to the Docker Volume. After that, every `opencli` command automatically carries the login session — even after container restarts or rebuilds.
 
-**不改一行 OpenCLI 源码。** 163 个适配器都调用 `page.goto()`、`page.evaluate()` 等浏览器 API。Shim 伪装成 Chrome Extension 连接到 OpenCLI daemon 的 WebSocket，截获命令翻译成 Camofox REST API，再原路返回结果。OpenCLI 完全不知道背后的浏览器是 Firefox。
+**Zero changes to OpenCLI source.** All 163 adapters call `page.goto()`, `page.evaluate()`, and other browser APIs. The Shim impersonates a Chrome Extension, connects to the OpenCLI daemon's WebSocket, intercepts commands, translates them into Camofox REST API calls, and sends results back. OpenCLI has no idea the browser behind it is Firefox.
 
-## 它如何工作
+## How It Works
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                         Docker 容器                               │
+│                        Docker container                           │
 │                                                                  │
-│  用户执行 opencli zhihu search 'AI agent'                        │
+│  User runs: opencli zhihu search 'AI agent'                      │
 │         │                                                        │
 │         │ HTTP POST /command                                     │
 │         ▼                                                        │
 │  ┌──────────────────────────────────┐                            │
-│  │  OpenCLI Daemon (:19825)         │  ← 原版 daemon，未修改     │
+│  │  OpenCLI Daemon (:19825)         │  ← unmodified daemon       │
 │  │  HTTP Server + WebSocket /ext    │                            │
 │  └──────────┬───────────────────────┘                            │
-│             │ WebSocket 转发命令                                  │
+│             │ WebSocket forwards commands                        │
 │             ▼                                                    │
 │  ┌──────────────────────────────────┐                            │
-│  │  Camofox Shim (v2)               │  ← 桥接层                  │
-│  │  • 伪装成 Chrome Extension       │                            │
-│  │  • 连接 daemon 的 /ext WebSocket │                            │
-│  │  • 翻译 DaemonCommand → REST API │                            │
+│  │  Camofox Shim (v2)               │  ← bridge layer            │
+│  │  • Impersonates Chrome Extension │                            │
+│  │  • Connects to daemon /ext WS    │                            │
+│  │  • Translates commands → REST    │                            │
 │  └──────────┬───────────────────────┘                            │
 │             │ HTTP REST                                          │
 │             ▼                                                    │
 │  ┌──────────────────────────────────┐                            │
-│  │  Camofox 浏览器 (:9377)          │  ← Firefox 内核            │
-│  │  • 反检测指纹伪装                │                            │
-│  │  • VNC 远程桌面 (:6080)          │                            │
-│  │  • Cookie 持久化                 │                            │
+│  │  Camofox browser (:9377)         │  ← Firefox engine          │
+│  │  • Anti-detection fingerprinting │                            │
+│  │  • VNC remote desktop (:6080)    │                            │
+│  │  • Cookie persistence            │                            │
 │  └──────────────────────────────────┘                            │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-### 命令翻译：DaemonCommand → Camofox REST API
+### Command Translation: DaemonCommand → Camofox REST API
 
-OpenCLI 通过 WebSocket 发送 14 种 `DaemonCommand`，Shim 将它们映射到 Camofox 的 REST 端点：
+OpenCLI sends 14 `DaemonCommand` types over WebSocket. The Shim maps them to Camofox REST endpoints:
 
-| OpenCLI 命令 | 用途 | → Camofox API | 状态 |
-|-------------|------|---------------|:---:|
-| `navigate` | 页面导航 | `POST /tabs/:tabId/navigate` | ✅ |
-| `exec` | JS 执行 | `POST /tabs/:tabId/evaluate` | ✅ |
-| `screenshot` | 截图 | `GET /tabs/:tabId/screenshot` | ✅ |
-| `cookies` | 获取 Cookie | `GET /sessions/:userId/cookies` | ✅ |
-| `tabs` | 标签页管理 | `POST/GET/DELETE /tabs` | ✅ |
-| `insert-text` | 文本输入 | `POST /tabs/:tabId/press` | ✅ |
-| `bind` | 绑定标签页 | 内部映射，无需 API | ✅ |
-| `close-window` | 关闭窗口 | `DELETE /sessions/:userId` | ✅ |
-| `cdp` | Chrome DevTools | — | ❌ Firefox 无 CDP |
-| `set-file-input` | 文件上传 | — | ❌ 未实现 |
-| `network-capture-*` | 网络捕获 | — | ❌ Firefox 无等效 |
-| `wait-download` | 下载等待 | — | ❌ 未实现 |
-| `frames` | iframe 列表 | — | ❌ 未实现 |
+| OpenCLI Command | Purpose | → Camofox API | Status |
+|----------------|------|---------------|:---:|
+| `navigate` | Page navigation | `POST /tabs/:tabId/navigate` | ✅ |
+| `exec` | JS evaluation | `POST /tabs/:tabId/evaluate` | ✅ |
+| `screenshot` | Screenshot | `GET /tabs/:tabId/screenshot` | ✅ |
+| `cookies` | Get cookies | `GET /sessions/:userId/cookies` | ✅ |
+| `tabs` | Tab management | `POST/GET/DELETE /tabs` | ✅ |
+| `insert-text` | Text input | `POST /tabs/:tabId/press` | ✅ |
+| `bind` | Bind tab | Internal mapping | ✅ |
+| `close-window` | Close window | `DELETE /sessions/:userId` | ✅ |
+| `cdp` | Chrome DevTools | — | ❌ Firefox has no CDP |
+| `set-file-input` | File upload | — | ❌ Not implemented |
+| `network-capture-*` | Network capture | — | ❌ No Firefox equivalent |
+| `wait-download` | Download wait | — | ❌ Not implemented |
+| `frames` | Iframe list | — | ❌ Not implemented |
 
-> 8/14 命令已实现，覆盖所有社交平台适配器的核心需求。CDP 等未实现命令不影响 B站、知乎、小红书、Twitter 等平台的使用。
+> 8/14 commands implemented, covering all core social platform adapter needs. Unimplemented CDP/network commands don't affect Bilibili, Zhihu, Xiaohongshu, Twitter, etc.
 
-### 一次完整的数据流
+### A Complete Data Flow
 
 ```
-1. 用户: opencli zhihu search 'AI agent'
+1. User: opencli zhihu search 'AI agent'
 2. CLI → HTTP POST /command → daemon(:19825)
-3. Daemon → WebSocket /ext → Shim（伪装成 Chrome Extension）
-4. Shim 解析: {action: "navigate", url: "https://www.zhihu.com/search?q=..."}
+3. Daemon → WebSocket /ext → Shim (impersonating Chrome Extension)
+4. Shim parses: {action: "navigate", url: "https://www.zhihu.com/search?q=..."}
 5. Shim → Camofox: POST /tabs/:tabId/navigate {userId, url}
-6. Shim 解析: {action: "exec", code: "等待页面加载 → 抓取搜索结果"}
+6. Shim parses: {action: "exec", code: "wait for page load → scrape results"}
 7. Shim → Camofox: POST /tabs/:tabId/evaluate {expression: code, timeout: 120000}
-8. Camofox 返回 JSON → Shim → WebSocket → Daemon → CLI → 用户看到结果
+8. Camofox returns JSON → Shim → WebSocket → Daemon → CLI → user sees results
 ```
 
-## 快速部署
+## Quick Deploy
 
 ```bash
 git clone --recurse-submodules https://github.com/Fectivnfy112357/camofox-opencli.git
@@ -118,38 +118,38 @@ docker compose build --no-cache
 docker compose up -d
 ```
 
-## 使用
+## Usage
 
 ```bash
 docker exec -it camofox bash
 
-# 无需登录即可使用
-opencli bilibili search '恐怖黎明'
+# No login required
+opencli bilibili search 'gaming'
 opencli v2ex hot
 
-# 需先登录（见下方 VNC 登录）
+# Login required (see VNC login below)
 opencli zhihu search 'AI agent'
-opencli xiaohongshu search '露营装备'
+opencli xiaohongshu search 'camping'
 
-# 查看全部 163 个平台
+# List all 163 platforms
 opencli list
 ```
 
-## VNC 远程登录
+## VNC Remote Login
 
-需要登录的平台（知乎、小红书、Twitter 等），通过 noVNC 远程扫码登录，Cookie 自动持久化：
+For platforms requiring login (Zhihu, Xiaohongshu, Twitter, etc.), use noVNC to scan a QR code once — cookies persist automatically:
 
 ```bash
-# 生成 VNC 链接并自动导航到目标网站
+# Generate a VNC link and auto-navigate to the target site
 python3 scripts/camofox-vnc-login.py fectivnfy --url https://www.zhihu.com
 
-# 输出: http://textvision.top:6080/vnc.html?autoconnect=true&resize=scale&token=xxxx
-# 浏览器打开 → 扫码登录 → 完成
+# Output: http://textvision.top:6080/vnc.html?autoconnect=true&resize=scale&token=xxxx
+# Open in browser → scan QR → done
 ```
 
-登录一次后，所有 `opencli` 命令自动复用登录态。Cookie 保存在 Docker Volume，容器重启、重建都不丢失。
+After logging in once, all `opencli` commands automatically reuse the session. Cookies are stored in a Docker Volume — they survive container restarts and rebuilds.
 
-## 更新
+## Updating
 
 ```bash
 cd camofox-opencli
@@ -158,24 +158,24 @@ git submodule update --remote
 docker compose down && docker compose build --no-cache && docker compose up -d
 ```
 
-## 子项目
+## Subprojects
 
-| 仓库 | 说明 | 许可 |
-|------|------|------|
-| [camofox-browser](https://github.com/Fectivnfy112357/camofox-browser) | Camofox fork，新增 GET cookies 端点 | MIT |
-| [camofox-shim](https://github.com/Fectivnfy112357/camofox-shim) | WebSocket 桥接层，连接 OpenCLI ↔ Camofox | MIT |
-| [OpenCLI](https://github.com/Fectivnfy112357/OpenCLI) | 163+ 站点适配器 CLI 工具 | MIT |
+| Repository | Description | License |
+|-----------|------|------|
+| [camofox-browser](https://github.com/Fectivnfy112357/camofox-browser) | Camofox fork, added GET cookies endpoint | MIT |
+| [camofox-shim](https://github.com/Fectivnfy112357/camofox-shim) | WebSocket bridge, OpenCLI ↔ Camofox | MIT |
+| [OpenCLI](https://github.com/Fectivnfy112357/OpenCLI) | 163+ site adapters CLI tool | MIT |
 
-## 开源协议
+## License
 
-本项目采用 [MIT License](LICENSE)。
+This project is licensed under the [MIT License](LICENSE).
 
-子项目许可：
-- **camofox-browser** — 基于 [jo-inc/camofox-browser](https://github.com/jo-inc/camofox-browser)（MIT），fork 新增 `GET /sessions/:userId/cookies` 端点和 `entrypoint-camofox.sh`。
-- **camofox-shim** — 原创项目，MIT。
-- **OpenCLI** — 基于 [jackwener/OpenCLI](https://github.com/jackwener/OpenCLI)（MIT），fork 未修改源码，仅作为子模块引用。
+Subproject licenses:
+- **camofox-browser** — Based on [jo-inc/camofox-browser](https://github.com/jo-inc/camofox-browser) (MIT), fork adds `GET /sessions/:userId/cookies` endpoint and `entrypoint-camofox.sh`.
+- **camofox-shim** — Original project, MIT.
+- **OpenCLI** — Based on [jackwener/OpenCLI](https://github.com/jackwener/OpenCLI) (MIT), fork is unmodified, used as a submodule.
 
-三个子项目均保持上游 MIT 协议，本项目亦以 MIT 协议发布。
+All three subprojects retain their upstream MIT licenses. This project is also MIT.
 
 ---
 
