@@ -1,6 +1,6 @@
-# Camofox Stack ☤
+# Camofox · OpenCLI ☤
 
-将 [OpenCLI](https://github.com/jackwener/OpenCLI) 搬上云端，163+ 站点变身 CLI 工具，通过 [Camofox](https://github.com/jo-inc/camofox-browser) 反检测浏览器 + [Shim](https://github.com/Fectivnfy112357/camofox-shim) 桥接层，一个 Docker 容器全搞定。
+Camofox + OpenCLI — 将 163+ 站点适配器搬上云端，通过 [Camofox](https://github.com/jo-inc/camofox-browser) 反检测浏览器 + [Shim](https://github.com/Fectivnfy112357/camofox-shim) 桥接层，一个 Docker 容器全搞定。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 [![Built with Docker](https://img.shields.io/badge/Built%20with-Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
@@ -112,8 +112,8 @@ OpenCLI 通过 WebSocket 发送 14 种 `DaemonCommand`，Shim 将它们映射到
 ## 快速部署
 
 ```bash
-git clone --recurse-submodules https://github.com/Fectivnfy112357/camofox-stack.git
-cd camofox-stack
+git clone --recurse-submodules https://github.com/Fectivnfy112357/camofox-opencli.git
+cd camofox-opencli
 docker compose build --no-cache
 docker compose up -d
 ```
@@ -152,7 +152,7 @@ python3 scripts/camofox-vnc-login.py fectivnfy --url https://www.zhihu.com
 ## 更新
 
 ```bash
-cd camofox-stack
+cd camofox-opencli
 git pull
 git submodule update --remote
 docker compose down && docker compose build --no-cache && docker compose up -d
