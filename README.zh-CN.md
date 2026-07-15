@@ -11,7 +11,7 @@ Camofox + OpenCLI — 将 163+ 站点适配器搬上云端，通过 [Camofox](ht
 
 OpenCLI 原生跑在桌面端——你的笔记本上开个 Chrome 浏览器，本地 daemon 通过 Chrome Extension 控制它。这套方案离开你的电脑就动不了。
 
-Camofox Stack 把它搬上云端：
+Camofox · OpenCLI 把它搬上云端：
 
 ```
 你的电脑                云端服务器
