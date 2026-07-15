@@ -1,5 +1,7 @@
 # Camofox · OpenCLI ☤
 
+![架构图](assets/architecture.png)
+
 Camofox + OpenCLI — 将 163+ 站点适配器搬上云端，通过 [Camofox](https://github.com/jo-inc/camofox-browser) 反检测浏览器 + [Shim](https://github.com/Fectivnfy112357/camofox-shim) 桥接层，一个 Docker 容器全搞定。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)

@@ -1,5 +1,7 @@
 # Camofox · OpenCLI ☤
 
+![Architecture](assets/architecture.png)
+
 Camofox + OpenCLI — 163+ website adapters in the cloud. One Docker container combining [Camofox](https://github.com/jo-inc/camofox-browser) anti-detection browser + [Shim](https://github.com/Fectivnfy112357/camofox-shim) bridge layer.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
