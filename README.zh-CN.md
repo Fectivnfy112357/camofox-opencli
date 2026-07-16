@@ -111,6 +111,51 @@ OpenCLI 通过 WebSocket 发送 14 种 `DaemonCommand`，Shim 将它们映射到
 8. Camofox 返回 JSON → Shim → WebSocket → Daemon → CLI → 用户看到结果
 ```
 
+## MCP + Skill：给外部 Agent 用
+
+容器内还跑了一个 **opencli gateway**（`:8080`），把 163+ 平台适配器通过两种方式暴露给外部 Agent，并附带一个开箱即用的 Claude skill：
+
+| 传输 | 端点 | 鉴权 |
+|---|---|---|
+| REST | `GET/POST /health`, `/sites`, `/sites/:site/help`, `/run`, `/login` | `Authorization: Bearer $GATEWAY_API_KEY` |
+| MCP | `POST /mcp`（streamable HTTP） | 同上的 Bearer 令牌 |
+
+### MCP 工具
+
+- **通用**：`list_sites`、`site_help`、`run_command`、`browser`、`login`、`doctor`
+- **每个站点**（10 个主平台，每个工具的 description 里内嵌命令清单）：`xiaohongshu_command`、`bilibili_command`、`twitter_command`、`reddit_command`、`zhihu_command`、`douyin_command`、`weibo_command`、`youtube_command`、`hackernews_command`、`github_command`
+- 其他约 160 个站点通过 `run_command` + `site_help` 调用
+
+### 接入 MCP 客户端
+
+Claude Desktop（`claude_desktop_config.json`）或 Claude Code（`.mcp.json`）：
+
+```json
+{
+  "mcpServers": {
+    "camofox-opencli": {
+      "url": "http://localhost:8080/mcp",
+      "headers": { "Authorization": "Bearer YOUR_GATEWAY_API_KEY" }
+    }
+  }
+}
+```
+
+`login` 工具会返回 noVNC 链接 —— 浏览器打开后扫码登录，Cookie 自动持久化。
+
+### 开箱即用的 Claude skill
+
+`skills/opencli-camofox/` 已随容器发布 —— 纯标准库 Python 脚本，通过 HTTP 调用 gateway。设置 `OPENCLI_GATEWAY_URL` + `GATEWAY_API_KEY`（或写到 `~/.opencli-gateway.env`），Claude Agent 就能直接用 `list_sites`、`site_help`、`run`、`browser`、`vnc_login`，零额外配置。
+
+### Gateway 环境变量
+
+| 变量 | 默认值 |
+|---|---|
+| `GATEWAY_PORT` | `8080` |
+| `GATEWAY_API_KEY` | _（REST + MCP 鉴权必填）_ |
+| `OPENCLI_BIN` | `opencli` |
+| `OPENCLI_MANIFEST` | `/opt/opencli/cli-manifest.json` |
+
 ## 快速部署
 
 ```bash

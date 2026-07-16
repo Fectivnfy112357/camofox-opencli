@@ -111,6 +111,51 @@ OpenCLI sends 14 `DaemonCommand` types over WebSocket. The Shim maps them to Cam
 8. Camofox returns JSON → Shim → WebSocket → Daemon → CLI → user sees results
 ```
 
+## MCP + Skill for External Agents
+
+The container also runs an **opencli gateway** (`:8080`) that exposes all 163+ platform adapters to external agents through two transports, plus a ready-made Claude skill:
+
+| Transport | Endpoint | Auth |
+|---|---|---|
+| REST | `GET/POST /health`, `/sites`, `/sites/:site/help`, `/run`, `/login` | `Authorization: Bearer $GATEWAY_API_KEY` |
+| MCP | `POST /mcp` (streamable HTTP) | same Bearer token |
+
+### Tools exposed via MCP
+
+- **Generic**: `list_sites`, `site_help`, `run_command`, `browser`, `login`, `doctor`
+- **Per-site** for 10 primary platforms (each description embeds its own command list): `xiaohongshu_command`, `bilibili_command`, `twitter_command`, `reddit_command`, `zhihu_command`, `douyin_command`, `weibo_command`, `youtube_command`, `hackernews_command`, `github_command`
+- All other ~160 sites are reachable through `run_command` + `site_help`
+
+### Connect an MCP client
+
+Claude Desktop (`claude_desktop_config.json`) or Claude Code (`.mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "camofox-opencli": {
+      "url": "http://localhost:8080/mcp",
+      "headers": { "Authorization": "Bearer YOUR_GATEWAY_API_KEY" }
+    }
+  }
+}
+```
+
+The `login` tool returns a noVNC URL — open it in your browser to scan a QR code and persist cookies for sites that need authentication.
+
+### Drop-in Claude skill
+
+`skills/opencli-camofox/` ships with the container — stdlib-only Python scripts calling the gateway over HTTP. Set `OPENCLI_GATEWAY_URL` + `GATEWAY_API_KEY` (or `~/.opencli-gateway.env`) and your Claude agent can `list_sites`, `site_help`, `run`, `browser`, and `vnc_login` with no extra setup.
+
+### Gateway env
+
+| Variable | Default |
+|---|---|
+| `GATEWAY_PORT` | `8080` |
+| `GATEWAY_API_KEY` | _(required for auth on REST + MCP)_ |
+| `OPENCLI_BIN` | `opencli` |
+| `OPENCLI_MANIFEST` | `/opt/opencli/cli-manifest.json` |
+
 ## Quick Deploy
 
 ```bash
