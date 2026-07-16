@@ -7,3 +7,4 @@
 [submodule "camofox-shim"]
 	path = camofox-shim
 	url = https://github.com/Fectivnfy112357/camofox-shim.git
+	branch = master
