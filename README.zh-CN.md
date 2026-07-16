@@ -201,9 +201,15 @@ python3 scripts/camofox-vnc-login.py fectivnfy --url https://www.zhihu.com
 ```bash
 cd camofox-opencli
 git pull
-git submodule update --remote
+git submodule update --init --remote
 docker compose down && docker compose build --no-cache && docker compose up -d
 ```
+
+> **子模块自动保持最新。** 每个子仓库（`camofox-browser`、`camofox-shim`、`OpenCLI`）默认分支每次推送都会通过 `.github/workflows/notify-aggregate.yml` 通知本聚合仓库。本仓库的 `.github/workflows/bump-submodules.yml` 会自动开一个 PR，把子模块指针 bump 到上游最新 HEAD。每天 UTC 03:17 还有一次兜底 cron 任务，防止 webhook 漏触发。
+>
+> 维护者提示：bump PR 通过 CI 后会自动合入 `main`（或者手动 merge）。本仓库只需要 **一个 Secret**：
+> - `AGGREGATE_PUSH_TOKEN` —— 一个对 `camofox-opencli` 有 `contents: write` + `pull-requests: write` 权限的 PAT，bump workflow 用它推送 bump 分支。
+> - `AGGREGATE_DISPATCH_TOKEN` —— 在每个子仓库配置，只需对 `camofox-opencli` 有 `contents: read` 权限，用来发 `repository_dispatch`。
 
 ## 子项目
 

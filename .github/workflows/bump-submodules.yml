@@ -1,0 +1,99 @@
+name: Bump submodules
+
+# Watches the three subproject repos. Whenever their default branch
+# moves, this workflow opens/updates a PR in camofox-opencli with
+# fresh submodule pointers — so `git pull && git submodule update`
+# always lands on the latest code without anyone touching this repo.
+
+on:
+  repository_dispatch:
+    types: [shim-updated, browser-updated, opencli-updated]
+  workflow_dispatch:
+  schedule:
+    # Safety net: even if the cross-repo webhook is missed, run once a day.
+    - cron: '17 3 * * *'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout aggregate repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.AGGREGATE_PUSH_TOKEN }}
+          submodules: false
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name  'camofox-opencli bot'
+          git config user.email 'bot@users.noreply.github.com'
+
+      - name: Bump each submodule to its default-branch HEAD
+        env:
+          SHIM_REF:    ${{ github.event.client_payload.shim_sha    || '' }}
+          BROWSER_REF: ${{ github.event.client_payload.browser_sha || '' }}
+          OPENCLI_REF: ${{ github.event.client_payload.opencli_sha || '' }}
+        run: |
+          set -euo pipefail
+          bump() {
+            local path="$1" default_branch="$2" pinned="$3"
+            local new
+            if [ -n "$pinned" ]; then
+              new="$pinned"
+            else
+              new=$(git ls-remote "https://github.com/Fectivnfy112357/${path}.git" \
+                    "refs/heads/${default_branch}" | awk '{print $1}')
+            fi
+            local cur
+            cur=$(git submodule status "$path" | awk '{print $1}' | tr -d '-')
+            if [ "$cur" = "$new" ]; then
+              echo "::notice::$path already at $new — nothing to do"
+              return 0
+            fi
+            echo "Bumping $path: $cur → $new"
+            git submodule update --init --remote --depth 1 "$path"
+            git add "$path"
+            return 1   # signal: there IS a change
+          }
+
+          changed=0
+          bump camofox-shim    master  "$SHIM_REF"    || changed=1
+          bump camofox-browser master  "$BROWSER_REF" || changed=1
+          bump opencli         main    "$OPENCLI_REF" || changed=1
+
+          if [ "$changed" -eq 0 ]; then
+            echo "No submodule changes to commit."
+            exit 0
+          fi
+
+          # Branch + commit + push (or PR if main is protected)
+          git checkout -b chore/bump-submodules-$(date +%Y%m%d-%H%M%S)
+          git commit -m "chore: bump submodules to latest upstream HEAD"
+          git push origin HEAD
+
+      - name: Open or update PR
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const branch = process.env.GITHUB_REF_NAME;
+            if (!branch || branch === 'main') return;
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', head: `${context.repo.owner}:${branch}`,
+            });
+            if (prs.length) {
+              core.info(`PR already open: #${prs[0].number}`);
+              return;
+            }
+            await github.rest.pulls.create({
+              owner: context.repo.owner, repo: context.repo.repo,
+              title: 'chore: bump submodules to latest upstream HEAD',
+              head: branch, base: 'main',
+              body: 'Auto-bumped by `.github/workflows/bump-submodules.yml`. Merge to ship the latest submodule pointers.',
+            });

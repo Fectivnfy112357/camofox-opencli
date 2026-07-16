@@ -201,9 +201,15 @@ After logging in once, all `opencli` commands automatically reuse the session. C
 ```bash
 cd camofox-opencli
 git pull
-git submodule update --remote
+git submodule update --init --remote
 docker compose down && docker compose build --no-cache && docker compose up -d
 ```
+
+> **Submodules stay fresh automatically.** Each sub-repo (`camofox-browser`, `camofox-shim`, `OpenCLI`) notifies this aggregate repo on every push to its default branch via `.github/workflows/notify-aggregate.yml`. `camofox-opencli`'s `.github/workflows/bump-submodules.yml` then opens a PR that bumps the submodule pointers to the latest upstream HEAD. A daily cron (03:17 UTC) is a safety net in case the webhook is missed.
+>
+> Maintainers: the bump PRs are auto-merged into `main` once CI passes (or merge them manually). The repo expects **one secret**:
+> - `AGGREGATE_PUSH_TOKEN` — a PAT with `contents: write` + `pull-requests: write` on `camofox-opencli`, used by the bump workflow to push the bump branch.
+> - `AGGREGATE_DISPATCH_TOKEN` — set in each sub-repo, a PAT with `contents: read` on `camofox-opencli`, used only to call `repository_dispatch`.
 
 ## Subprojects
 
