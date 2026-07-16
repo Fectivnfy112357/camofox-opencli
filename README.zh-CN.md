@@ -205,11 +205,9 @@ git submodule update --init --remote
 docker compose down && docker compose build --no-cache && docker compose up -d
 ```
 
-> **子模块自动保持最新。** 每个子仓库（`camofox-browser`、`camofox-shim`、`OpenCLI`）默认分支每次推送都会通过 `.github/workflows/notify-aggregate.yml` 通知本聚合仓库。本仓库的 `.github/workflows/bump-submodules.yml` 会自动开一个 PR，把子模块指针 bump 到上游最新 HEAD。每天 UTC 03:17 还有一次兜底 cron 任务，防止 webhook 漏触发。
+> **子模块自动保持最新。** `camofox-opencli/.github/workflows/bump-submodules.yml` 每天 UTC 03:17 自动跑一次 — 任何子仓库推了默认分支，24 小时内本仓库的 submodule 指针就会 bump 到上游最新 HEAD。**无需任何 Secret**：workflow 用自动注入的 `GITHUB_TOKEN`，靠 `permissions:` 块声明 `contents: write` + `pull-requests: write`。
 >
-> 维护者提示：bump PR 通过 CI 后会自动合入 `main`（或者手动 merge）。本仓库只需要 **一个 Secret**：
-> - `AGGREGATE_PUSH_TOKEN` —— 一个对 `camofox-opencli` 有 `contents: write` + `pull-requests: write` 权限的 PAT，bump workflow 用它推送 bump 分支。
-> - `AGGREGATE_DISPATCH_TOKEN` —— 在每个子仓库配置，只需对 `camofox-opencli` 有 `contents: read` 权限，用来发 `repository_dispatch`。
+> 想秒级 bump（不等 24h）的话，每个子仓库有 `.github/workflows/notify-aggregate.yml`，每次推送会调用 `repository_dispatch` 通知本仓库。跨仓库 dispatch 需要 PAT，所以这一步有保护——子仓库没配 `AGGREGATE_DISPATCH_TOKEN` 就静默跳过，定时 cron 兜底。
 
 ## 子项目
 

@@ -10,7 +10,10 @@ on:
     types: [shim-updated, browser-updated, opencli-updated]
   workflow_dispatch:
   schedule:
-    # Safety net: even if the cross-repo webhook is missed, run once a day.
+    # Daily bump — even without cross-repo webhooks, every submodule
+    # pointer lands on upstream HEAD within 24h of a sub-repo push.
+    # No secrets required: GITHUB_TOKEN is auto-injected and has
+    # contents:write + pull-requests:write per the permissions block.
     - cron: '17 3 * * *'
 
 permissions:
@@ -24,7 +27,7 @@ jobs:
       - name: Checkout aggregate repo
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.AGGREGATE_PUSH_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           submodules: false
           fetch-depth: 0
 
