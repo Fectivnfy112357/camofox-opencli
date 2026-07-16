@@ -10,6 +10,7 @@ services:
       - "9377:9377"
       - "6080:6080"
       - "19825:19825"
+      - "8080:8080"
 
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -30,6 +31,10 @@ services:
       CAMOFOX_URL: "http://localhost:9377"
       CAMOFOX_USER_ID: "fectivnfy"
       SHIM_PORT: "19825"
+      # Gateway
+      GATEWAY_PORT: "8080"
+      GATEWAY_API_KEY: "change_me_gateway_key"
+      OPENCLI_MANIFEST: "/opt/opencli/cli-manifest.json"
 
     shm_size: "2gb"
     security_opt:

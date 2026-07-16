@@ -16,6 +16,15 @@ RUN npm ci
 COPY camofox-shim/ ./
 RUN npx tsc
 
+# ─── Stage 2b: Build OpenCLI Gateway ──────────────────────────────
+FROM node:22-slim AS gateway-build
+
+WORKDIR /app
+COPY camofox-shim/gateway/package.json camofox-shim/gateway/package-lock.json ./
+RUN npm ci
+COPY camofox-shim/gateway/ ./
+RUN npx tsc
+
 # ─── Stage 3: Final image ─────────────────────────────────────────
 FROM ghcr.io/redf0x1/camofox-browser:latest
 
@@ -43,11 +52,18 @@ COPY --from=shim-build /app/dist /opt/shim/dist
 COPY --from=shim-build /app/node_modules /opt/shim/node_modules
 COPY --from=shim-build /app/package.json /opt/shim/
 
+# ── Install Gateway ───────────────────────────────────────────────
+COPY --from=gateway-build /app/dist /opt/gateway/dist
+COPY --from=gateway-build /app/node_modules /opt/gateway/node_modules
+COPY --from=gateway-build /app/package.json /opt/gateway/
+
 # ── Supervisor config ─────────────────────────────────────────────
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 ENV CAMOFOX_URL=http://localhost:9377
 ENV SHIM_PORT=19825
+ENV GATEWAY_PORT=8080
+ENV OPENCLI_MANIFEST=/opt/opencli/cli-manifest.json
 
-EXPOSE 9377 6080 19825
+EXPOSE 9377 6080 19825 8080
 CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
