@@ -10,7 +10,10 @@ services:
       - "9377:9377"
       - "6080:6080"
       - "19825:19825"
-      - "8080:8080"
+      # Host port for the gateway (REST + MCP). Override GATEWAY_EXPOSE_PORT
+      # in .env when the default 8080 is taken on the host (maps to the
+      # container's fixed 8080).
+      - "${GATEWAY_EXPOSE_PORT:-8080}:8080"
 
     extra_hosts:
       - "host.docker.internal:host-gateway"
