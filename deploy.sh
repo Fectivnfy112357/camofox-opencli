@@ -38,7 +38,14 @@ git pull --rebase
 echo "==> [2/5] 同步 submodule 到主仓库记录的指针"
 # 用 --remote 会跟到子仓库分支 HEAD,可能超前于主仓库指针;这里只同步到
 # 主仓库提交里锁定的指针,保证与刚 git pull 的内容一致。
-git submodule update --init --recursive
+# --force:子仓库历史里曾跟踪 node_modules(现已剔除),工作区残留文件会
+# 让普通 checkout 因"本地修改将被覆盖"而失败;强制覆盖即可(构建产物,
+# Docker 内会重新 npm ci)。
+git submodule update --init --recursive --force || {
+  echo "    submodule checkout 冲突,清理残留后重试..."
+  git submodule foreach --recursive 'git reset --hard && git clean -fdx' || true
+  git submodule update --init --recursive --force
+}
 
 if [ "$BUILD" -eq 1 ]; then
   echo "==> [3/5] 重建镜像(源码 hash 变化时全量 build,约 5-10 分钟)"
