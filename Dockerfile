@@ -64,10 +64,17 @@ COPY --from=gateway-build /app/package.json /opt/gateway/
 # ── Supervisor config ─────────────────────────────────────────────
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
+# ── Gateway log dir (writable by 'node', mounted out via compose) ──
+RUN mkdir -p /var/log/gateway && chown -R node:node /var/log/gateway
+
+# ── Entrypoint: chown bind-mounted log dir, then exec supervisord ──
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 ENV CAMOFOX_URL=http://localhost:9377
 ENV SHIM_PORT=19825
 ENV GATEWAY_PORT=8080
 ENV OPENCLI_MANIFEST=/opt/opencli/cli-manifest.json
 
 EXPOSE 9377 6080 19825 8080
-CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+CMD ["/entrypoint.sh"]

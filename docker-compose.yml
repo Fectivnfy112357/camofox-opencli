@@ -38,12 +38,17 @@ services:
       GATEWAY_PORT: "8080"
       GATEWAY_API_KEY: "change_me_gateway_key"
       OPENCLI_MANIFEST: "/opt/opencli/cli-manifest.json"
+      GATEWAY_LOG_DIR: "/var/log/gateway"
+      GATEWAY_LOG_LEVEL: "info"
 
     shm_size: "2gb"
     security_opt:
       - seccomp=unconfined
     volumes:
       - camofox_data:/home/node/.camofox
+      # Gateway logs surfaced to the host for out-of-container inspection.
+      # Override with GATEWAY_LOG_HOST_DIR in .env (default ./logs/gateway).
+      - "${GATEWAY_LOG_HOST_DIR:-./logs/gateway}:/var/log/gateway"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:9377/health"]
       interval: 30s
