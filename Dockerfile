@@ -14,6 +14,9 @@ WORKDIR /app
 COPY camofox-shim/package.json camofox-shim/package-lock.json ./
 RUN npm ci
 COPY camofox-shim/ ./
+# Fix executable bit on .bin shims — npm ci sometimes drops +x when sources
+# come from a host with non-POSIX mounts (e.g. bind-mounted on Windows).
+RUN chmod -R +x node_modules/.bin || true
 RUN npx tsc
 
 # ─── Stage 2b: Build OpenCLI Gateway ──────────────────────────────
@@ -23,6 +26,7 @@ WORKDIR /app
 COPY camofox-shim/gateway/package.json camofox-shim/gateway/package-lock.json ./
 RUN npm ci
 COPY camofox-shim/gateway/ ./
+RUN chmod -R +x node_modules/.bin || true
 RUN npx tsc
 
 # ─── Stage 3: Final image ─────────────────────────────────────────
