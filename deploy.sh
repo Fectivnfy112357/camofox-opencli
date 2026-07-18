@@ -64,7 +64,12 @@ if [ "$BUILD" -eq 1 ]; then
     if [ ! -f "$CAMOFOX_BUILD_DIR/version.json" ]; then
       TAG=$("$CAMOFOX_BUILD_DIR/camoufox-bin" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+' | head -1 || true)
       TAG=${TAG:-152.0.4-beta.27}
-      printf '{"version":"%s"}\n' "${TAG#v}" > "$CAMOFOX_BUILD_DIR/version.json"
+      # version.json schema is { "version": "X.Y.Z", "release": "beta.N" } —
+      # not a single combined string. See camoufox-js/dist/pkgman.js:93.
+      VERSION=${TAG%%-*}
+      RELEASE=${TAG#*-}
+      printf '{"version":"%s","release":"%s"}\n' "$VERSION" "$RELEASE" \
+        > "$CAMOFOX_BUILD_DIR/version.json"
     fi
     export CAMOFOX_CACHE_DIR="$CAMOFOX_BUILD_DIR"
     trap 'rm -rf "$CAMOFOX_BUILD_DIR"' EXIT
