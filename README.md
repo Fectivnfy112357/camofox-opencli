@@ -2,7 +2,7 @@
 
 ![Architecture](assets/architecture.png)
 
-Camofox + OpenCLI — 163+ website adapters in the cloud. One Docker container combining [Camofox](https://github.com/jo-inc/camofox-browser) anti-detection browser + [Shim](https://github.com/Fectivnfy112357/camofox-shim) bridge layer.
+Camofox + OpenCLI — 163+ website adapters in the cloud. One Docker container combining [Camofox](https://github.com/jo-inc/camofox-browser) anti-detection browser + [Shim](https://github.com/festivnfy112357/camofox-shim) bridge layer.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 [![Built with Docker](https://img.shields.io/badge/Built%20with-Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
@@ -166,7 +166,7 @@ GeoLite2-City.mmdb, so you only need to pull — no network access, no build
 context preparation.
 
 ```bash
-docker pull ghcr.io/Fectivnfy112357/camofox-opencli:latest
+docker pull ghcr.io/festivnfy112357/camofox-opencli:latest
 docker run -d --name camofox \
   --privileged --shm-size=2g \
   -p 9377:9377 -p 6080:6080 -p 19825:19825 -p 8080:8080 \
@@ -174,7 +174,7 @@ docker run -d --name camofox \
   -e GATEWAY_API_KEY=$(openssl rand -hex 32) \
   -e CAMOFOX_API_KEY=my_secret_api_key_123 \
   -v camofox_data:/home/node/.camofox \
-  ghcr.io/Fectivnfy112357/camofox-opencli:latest
+  ghcr.io/festivnfy112357/camofox-opencli:latest
 ```
 
 Then open `http://localhost:6080` (noVNC) and log in to the sites you want
@@ -187,7 +187,7 @@ Forks are checked in as git submodules, so a build needs your fork URLs in
 `.gitmodules`. Run this in a clean checkout:
 
 ```bash
-git clone --recurse-submodules https://github.com/Fectivnfy112357/camofox-opencli.git
+git clone --recurse-submodules https://github.com/festivnfy112357/camofox-opencli.git
 cd camofox-opencli
 docker compose build --no-cache
 docker compose up -d
@@ -248,9 +248,9 @@ docker compose down && docker compose build --no-cache && docker compose up -d
 
 | Repository | Description | License |
 |-----------|------|------|
-| [camofox-browser](https://github.com/Fectivnfy112357/camofox-browser) | Camofox fork, added GET cookies endpoint | MIT |
-| [camofox-shim](https://github.com/Fectivnfy112357/camofox-shim) | WebSocket bridge, OpenCLI ↔ Camofox | MIT |
-| [OpenCLI](https://github.com/Fectivnfy112357/OpenCLI) | 163+ site adapters CLI tool | MIT |
+| [camofox-browser](https://github.com/festivnfy112357/camofox-browser) | Camofox fork, added GET cookies endpoint | MIT |
+| [camofox-shim](https://github.com/festivnfy112357/camofox-shim) | WebSocket bridge, OpenCLI ↔ Camofox | MIT |
+| [OpenCLI](https://github.com/festivnfy112357/OpenCLI) | 163+ site adapters CLI tool | MIT |
 
 ## License
 
