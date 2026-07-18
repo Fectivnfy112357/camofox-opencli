@@ -68,6 +68,9 @@ RUN echo "Acquire::http::Proxy \"${BUILDER_HTTP_PROXY}\";\nAcquire::https::Proxy
     xvfb \
     fonts-liberation fonts-noto-color-emoji fontconfig \
     ca-certificates curl \
+    # Native-build deps for better-sqlite3 (compiled by npm install lifecycle
+    # scripts). Without these the .node binary is missing at runtime.
+    build-essential python3 unzip \
     && rm -rf /var/lib/apt/lists/* \
     && rm -f /etc/apt/apt.conf.d/99proxy
 
@@ -79,31 +82,37 @@ RUN curl -fsSL --proxy "${BUILDER_HTTP_PROXY}" \
 WORKDIR /app
 
 # Copy the full fork source first. The fork's postinstall.js (which runs
-# `npx camoufox-js fetch` to populate /root/.cache/camoufox/) lives under
+# `npx camoufox-js fetch` to populate ${HOME}/.cache/camoufox/) lives under
 # ./scripts/ and must be present BEFORE npm ci runs lifecycle scripts.
 COPY camofox-browser/ ./
 
-# Install Camofox Browser fork dependencies (production only). Pass
-# --ignore-scripts here because the fork's postinstall.js runs
-# `npx camoufox-js fetch` through the `impit` native client, which bypasses
-# $HTTP_PROXY and is unreliable in a build-time Docker container. The
-# Camoufox binary + assets are injected separately from the host cache (see
-# the COPY below) so this stage doesn't need network access at all.
-RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+# Inject the Camoufox binary bundle *before* npm ci so the fork's postinstall
+# sees a populated cache and skips its own (network-bound) `camoufox-js fetch`
+# step. deploy.sh provides this from the host via the `camoufox` named build
+# context. The runtime node user runs the server as $HOME=/home/node, which
+# is also where better-sqlite3 and other modules expect to live.
+COPY --from=camoufox . /home/node/.cache/camoufox/
+
+# Install Camofox Browser fork dependencies (production only). HOME=/home/node
+# + USER=node so the postinstall resolves camoufox's cache dir to
+# /home/node/.cache/camoufox (matches the COPY above). --omit=dev drops the
+# test/jest toolchain. We deliberately do NOT pass --ignore-scripts:
+#   * better-sqlite3 has a postinstall script (build-with-jspi) that compiles
+#     the native .node binding required at runtime (camofox-browser/server.js
+#     uses it for `cookies.sqlite` and other state stores). Without it the
+#     server boots but crashes on first tab creation with `Could not locate
+#     the bindings file`.
+#   * The fork's own postinstall is a no-op when version.json exists in the
+#     cache (which we just placed), so it won't try to refetch over the net.
+RUN chown -R node:node /home/node/.cache/camoufox
+USER node
+ENV HOME=/home/node
+RUN npm ci --omit=dev --no-audit --no-fund
+USER root
 
 # Optional: install default plugin deps (apt + post-install hooks). Skip
 # failures — the server still boots without every plugin's deps.
 RUN sh scripts/install-plugin-deps.sh || true
-
-# Inject the Camoufox binary bundle into the image without going through
-# `camoufox-js fetch`. The build context `camoufox-cache` must be supplied by
-# the caller (deploy.sh provides it from the host's /root/.cache/camoufox
-# via additional_contexts in docker-compose.yml). camofox-server.js runs as
-# the `node` user, whose $HOME is /home/node — camoufox-js therefore expects
-# the cache at /home/node/.cache/camoufox (not /root/.cache/camoufox). Copy
-# there and chown so node can read every entry.
-COPY --from=camoufox . /home/node/.cache/camoufox/
-RUN chown -R node:node /home/node/.cache/camoufox
 
 # Inject the two runtime assets camoufox-js pulls at browser launch time
 # (mozilla.org / P3TERX/GeoLite.mmdb github release). They arrive via the
@@ -114,9 +123,6 @@ RUN chown -R node:node /home/node/.cache/camoufox
 COPY --from=runtime-addons GeoLite2-City.mmdb /home/node/.cache/camoufox/GeoLite2-City.mmdb
 COPY --from=runtime-addons addons/UBO/ /home/node/.cache/camoufox/addons/UBO/
 RUN chown -R node:node /home/node/.cache/camoufox
-# Re-assert ownership in case the COPYs above wrote files as root — camofox
-# runs as the `node` user and bails if it can't read its cache entries.
-RUN chown -R node:node /home/node/.cache/camoufox 2>/dev/null || true
 
 ENV NODE_ENV=production
 ENV CAMOFOX_PORT=9377
