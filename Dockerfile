@@ -29,23 +29,12 @@ COPY camofox-shim/gateway/ ./
 RUN chmod -R +x node_modules/.bin || true
 RUN npx tsc
 
-# ─── Stage 2c: Fetch Camoufox + yt-dlp binaries ────────────────────
-# Pinned to the latest Camoufox release (override via --build-arg).
-ARG CAMOUFOX_VERSION=152.0.4
-ARG CAMOUFOX_RELEASE=beta.27
-
-FROM alpine:3.20 AS camoufox-bin
-
-ARG CAMOUFOX_VERSION
-ARG CAMOUFOX_RELEASE
-
-RUN apk add --no-cache curl ca-certificates unzip \
-    && mkdir -p /out \
-    && curl -fSL "https://github.com/daijro/camoufox/releases/download/${CAMOUFOX_VERSION}-${CAMOUFOX_RELEASE}/camoufox-${CAMOUFOX_VERSION}-${CAMOUFOX_RELEASE}-lin.x86_64.zip" -o /tmp/camoufox.zip \
-    && unzip -q /tmp/camoufox.zip -d /out \
-    && test -f /out/camoufox-bin || (echo "camoufox-bin missing" && ls -R /out && exit 1) \
-    && chmod -R 755 /out \
-    && printf '{"version":"%s","release":"%s"}\n' "$CAMOUFOX_VERSION" "$CAMOUFOX_RELEASE" > /out/version.json
+# ─── Stage 2c: Camoufox binaries are fetched at runtime by the fork ───
+# The camofox-browser fork's `postinstall` script (scripts/postinstall.js)
+# runs `npx camoufox-js fetch` during `npm install`, populating
+# /root/.cache/camoufox/. We let that happen inline rather than mirroring
+# the asset from a separate Dockerfile stage (the asset URL shape changes
+# between releases and was failing to resolve against github.com/daijro).
 
 # ─── Stage 3: Build Camofox Browser fork from source ──────────────
 # Build the user's local fork of Camofox Browser (sibling submodule) instead
@@ -63,9 +52,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-liberation fonts-noto-color-emoji fontconfig \
     ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
-
-# Inherit the Camoufox binary from the camoufox-bin stage
-COPY --from=camoufox-bin /out /root/.cache/camoufox
 
 # yt-dlp for YouTube transcript extraction
 RUN curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux -o /usr/local/bin/yt-dlp \
