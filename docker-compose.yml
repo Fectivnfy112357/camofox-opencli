@@ -3,6 +3,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # Named build context. The Camoufox binary bundle is injected from the
+      # host cache at deploy time (see deploy.sh) so the Dockerfile can
+      # `COPY --from=camoufox ...` without running `camoufox-js fetch` over
+      # the network (which is unreliable in build-time containers).
+      additional_contexts:
+        camoufox: ${CAMOFOX_CACHE_DIR:-/dev/null}
     container_name: camofox
     restart: unless-stopped
 

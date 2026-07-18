@@ -50,16 +50,16 @@ git submodule update --init --recursive --force || {
 if [ "$BUILD" -eq 1 ]; then
   echo "==> [3/5] 重建镜像(源码 hash 变化时全量 build,约 5-10 分钟)"
   # Pre-stage Camoufox binary bundle from the host cache so the build does NOT
-  # rely on the network at all. Falls back to missing context if absent — the
-  # image will still build but `camofox-js fetch` will run inside the
-  # container at startup instead.
+  # rely on the network at all. The camofox-cache is then passed into
+  # `docker compose build` via the `camoufox` named context declared in
+  # docker-compose.yml (additional_contexts).
   if [ -d /root/.cache/camoufox ]; then
     CAMOFOX_BUILD_DIR=$(mktemp -d)
     cp -a /root/.cache/camoufox/. "$CAMOFOX_BUILD_DIR"/
-    $DC build --build-context "camoufox=$CAMOFOX_BUILD_DIR"
-  else
-    $DC build
+    export CAMOFOX_CACHE_DIR="$CAMOFOX_BUILD_DIR"
+    trap 'rm -rf "$CAMOFOX_BUILD_DIR"' EXIT
   fi
+  $DC build
 else
   echo "==> [3/5] 跳过 build (--no-build)"
 fi
