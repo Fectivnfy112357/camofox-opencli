@@ -57,6 +57,10 @@ services:
       CAMOFOX_URL: "http://localhost:9377"
       CAMOFOX_USER_ID: "fectivnfy"
       SHIM_PORT: "19825"
+      # Give YouTube-style SPA sites room to fully render before we time out
+      # the navigation. Default in camofox-browser/lib/config.js is 25s; some
+      # results pages take 30-45s over the v2raya tunnel.
+      NAVIGATE_TIMEOUT_MS: "90000"
       # Gateway
       GATEWAY_PORT: "8080"
       GATEWAY_API_KEY: "change_me_gateway_key"
