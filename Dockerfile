@@ -104,7 +104,7 @@ COPY --from=camoufox . /home/node/.cache/camoufox/
 #     the bindings file`.
 #   * The fork's own postinstall is a no-op when version.json exists in the
 #     cache (which we just placed), so it won't try to refetch over the net.
-RUN chown -R node:node /home/node/.cache/camoufox
+RUN chown -R node:node /home/node/.cache/camoufox /app
 USER node
 ENV HOME=/home/node
 RUN npm ci --omit=dev --no-audit --no-fund
