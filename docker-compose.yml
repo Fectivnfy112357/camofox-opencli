@@ -36,6 +36,17 @@ services:
       PROXY_HOST: "host.docker.internal"
       PROXY_PORT: "20172"
       CAMOFOX_ALLOW_PRIVATE_NETWORK: "true"
+      # camoufox-js's Node fetcher (webdl / GitHub release lookups / GeoIP DB
+      # download) honours standard Node HTTP_PROXY env vars. The PROXY_HOST/
+      # PORT above are only used by the browser fingerprint proxy layer and
+      # don't apply to Node-side fetch. Pointing both at v2raya makes the
+      # initial addon bootstrap and GeoIP refresh reachable from this
+      # container.
+      HTTP_PROXY: "http://host.docker.internal:20172"
+      HTTPS_PROXY: "http://host.docker.internal:20172"
+      http_proxy: "http://host.docker.internal:20172"
+      https_proxy: "http://host.docker.internal:20172"
+      NO_PROXY: "localhost,127.0.0.1,host.docker.internal"
       # Shim
       CAMOFOX_URL: "http://localhost:9377"
       CAMOFOX_USER_ID: "fectivnfy"
