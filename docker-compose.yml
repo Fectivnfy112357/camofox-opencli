@@ -39,6 +39,11 @@ services:
       CAMOFOX_VNC_TIMEOUT_MS: "600000"
       ENABLE_VNC: "1"
       VNC_PASSWORD: "my_vnc_password"
+      # vnc-watcher.sh defaults to 127.0.0.1 which makes the noVNC port
+      # reachable only from inside the container. Bind to 0.0.0.0 so
+      # `docker port ... 6080` maps the host port through to the actual
+      # websockify listener.
+      VNC_BIND: "0.0.0.0"
       PROXY_HOST: "host.docker.internal"
       PROXY_PORT: "20172"
       CAMOFOX_ALLOW_PRIVATE_NETWORK: "true"
