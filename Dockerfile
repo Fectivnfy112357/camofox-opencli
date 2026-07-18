@@ -78,21 +78,15 @@ RUN curl -fsSL --proxy "${BUILDER_HTTP_PROXY}" \
 
 WORKDIR /app
 
-# Install Camofox Browser fork dependencies (production only)
-COPY camofox-browser/package.json camofox-browser/package-lock.json* ./
+# Copy the full fork source first. The fork's postinstall.js (which runs
+# `npx camoufox-js fetch` to populate /root/.cache/camoufox/) lives under
+# ./scripts/ and must be present BEFORE npm ci runs lifecycle scripts.
+COPY camofox-browser/ ./
+
 # Install Camofox Browser fork dependencies (production only). Do NOT pass
 # --ignore-scripts — the fork's postinstall.js runs `npx camoufox-js fetch`
 # to populate /root/.cache/camoufox/, which the server picks up at startup.
 RUN npm ci --omit=dev --no-audit --no-fund
-
-# Copy the rest of the fork source. server.js is ESM (type: module),
-# so we run it directly without a build step.
-COPY camofox-browser/server.js ./
-COPY camofox-browser/camofox.config.json ./
-COPY camofox-browser/lib ./lib
-COPY camofox-browser/plugins ./plugins
-COPY camofox-browser/scripts ./scripts
-COPY camofox-browser/bin ./bin
 
 # Optional: install default plugin deps (apt + post-install hooks). Skip
 # failures — the server still boots without every plugin's deps.
