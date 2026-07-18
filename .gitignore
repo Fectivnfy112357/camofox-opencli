@@ -1,2 +1,7 @@
 .idea/
 logs/
+# Local-only camoufox build artifacts. These are fetched by deploy.sh into
+# /opt/camoufox-staging at deploy time and copied into the image verbatim;
+# they don't belong in git because each deploy may pin a different camoufox
+# release tag or ublock/geoip version.
+camofox-runtime/

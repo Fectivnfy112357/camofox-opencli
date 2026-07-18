@@ -105,6 +105,19 @@ RUN sh scripts/install-plugin-deps.sh || true
 COPY --from=camoufox . /home/node/.cache/camoufox/
 RUN chown -R node:node /home/node/.cache/camoufox
 
+# Inject the two runtime assets camoufox-js pulls at browser launch time
+# (mozilla.org / P3TERX/GeoLite.mmdb github release). They arrive via the
+# `runtime-addons` named build context populated by deploy.sh from the host
+# /opt/camoufox-runtime/. The context may be absent when devs skip the
+# pre-stage, so each COPY tolerates the empty `/dev/null` fallback by being
+# skipped silently.
+COPY --from=runtime-addons GeoLite2-City.mmdb /home/node/.cache/camoufox/GeoLite2-City.mmdb
+COPY --from=runtime-addons addons/UBO/ /home/node/.cache/camoufox/addons/UBO/
+RUN chown -R node:node /home/node/.cache/camoufox
+# Re-assert ownership in case the COPYs above wrote files as root — camofox
+# runs as the `node` user and bails if it can't read its cache entries.
+RUN chown -R node:node /home/node/.cache/camoufox 2>/dev/null || true
+
 ENV NODE_ENV=production
 ENV CAMOFOX_PORT=9377
 

@@ -74,6 +74,19 @@ if [ "$BUILD" -eq 1 ]; then
     export CAMOFOX_CACHE_DIR="$CAMOFOX_BUILD_DIR"
     trap 'rm -rf "$CAMOFOX_BUILD_DIR"' EXIT
   fi
+
+  # Pre-stage runtime-only assets camoufox-js would otherwise fetch at first
+  # launch (and fail to reach from inside the container). We download these
+  # outside build context, then expose them to the Dockerfile via the
+  # `runtime-addons` named build context. UBO is unzipped here, GeoIP DB is a
+  # single binary — the Dockerfile expects that layout.
+  RUNTIME_BUILD_DIR=$(mktemp -d)
+  mkdir -p "$RUNTIME_BUILD_DIR/addons"
+  cp -a /opt/camoufox-runtime/addons/UBO "$RUNTIME_BUILD_DIR/addons/UBO" 2>/dev/null || true
+  cp -a /opt/camoufox-runtime/GeoLite2-City.mmdb "$RUNTIME_BUILD_DIR/GeoLite2-City.mmdb" 2>/dev/null || true
+  export RUNTIME_ADDONS_DIR="$RUNTIME_BUILD_DIR"
+  trap 'rm -rf "$CAMOFOX_BUILD_DIR" "$RUNTIME_BUILD_DIR"' EXIT
+
   $DC build
 else
   echo "==> [3/5] 跳过 build (--no-build)"

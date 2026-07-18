@@ -9,6 +9,12 @@ services:
       # the network (which is unreliable in build-time containers).
       additional_contexts:
         camoufox: ${CAMOFOX_CACHE_DIR:-/dev/null}
+        # Runtime-only assets camoufox-js would otherwise download at first
+        # browser launch: ublock-origin xpi (extracted) + GeoLite2-City.mmdb.
+        # Provided from /opt/camoufox-runtime/ by deploy.sh. When the dir is
+        # absent, the build still succeeds — the camoufox named context above
+        # is the only hard requirement.
+        runtime-addons: ${RUNTIME_ADDONS_DIR:-/dev/null}
     container_name: camofox
     restart: unless-stopped
 
