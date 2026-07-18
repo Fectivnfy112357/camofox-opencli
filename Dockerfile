@@ -98,8 +98,12 @@ RUN sh scripts/install-plugin-deps.sh || true
 # Inject the Camoufox binary bundle into the image without going through
 # `camoufox-js fetch`. The build context `camoufox-cache` must be supplied by
 # the caller (deploy.sh provides it from the host's /root/.cache/camoufox
-# via `docker build --build-context camoufox=/root/.cache/camoufox`).
-COPY --from=camoufox . /root/.cache/camoufox/
+# via additional_contexts in docker-compose.yml). camofox-server.js runs as
+# the `node` user, whose $HOME is /home/node — camoufox-js therefore expects
+# the cache at /home/node/.cache/camoufox (not /root/.cache/camoufox). Copy
+# there and chown so node can read every entry.
+COPY --from=camoufox . /home/node/.cache/camoufox/
+RUN chown -R node:node /home/node/.cache/camoufox
 
 ENV NODE_ENV=production
 ENV CAMOFOX_PORT=9377
