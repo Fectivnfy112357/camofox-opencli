@@ -41,7 +41,7 @@ ARG CAMOUFOX_RELEASE
 
 RUN apk add --no-cache curl ca-certificates unzip \
     && mkdir -p /out \
-    && curl -fSL "https://github.com/daijro/camoufox/releases/download/v${CAMOUFOX_VERSION}-${CAMOUFOX_RELEASE}/camoufox-${CAMOUFOX_VERSION}-${CAMOUFOX_RELEASE}-lin.x86_64.zip" -o /tmp/camoufox.zip \
+    && curl -fSL "https://github.com/daijro/camoufox/releases/download/${CAMOUFOX_VERSION}-${CAMOUFOX_RELEASE}/camoufox-${CAMOUFOX_VERSION}-${CAMOUFOX_RELEASE}-lin.x86_64.zip" -o /tmp/camoufox.zip \
     && unzip -q /tmp/camoufox.zip -d /out \
     && test -f /out/camoufox-bin || (echo "camoufox-bin missing" && ls -R /out && exit 1) \
     && chmod -R 755 /out \
