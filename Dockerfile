@@ -29,18 +29,80 @@ COPY camofox-shim/gateway/ ./
 RUN chmod -R +x node_modules/.bin || true
 RUN npx tsc
 
-# ─── Stage 3: Final image ─────────────────────────────────────────
-FROM ghcr.io/redf0x1/camofox-browser:latest
+# ─── Stage 2c: Fetch Camoufox + yt-dlp binaries ────────────────────
+# Pinned to the latest Camoufox release (override via --build-arg).
+ARG CAMOUFOX_VERSION=152.0.4
+ARG CAMOUFOX_RELEASE=beta.27
 
-# Switch to root — base image runs as 'node' user
+FROM alpine:3.20 AS camoufox-bin
+
+ARG CAMOUFOX_VERSION
+ARG CAMOUFOX_RELEASE
+
+RUN apk add --no-cache curl ca-certificates unzip \
+    && mkdir -p /out \
+    && curl -fSL "https://github.com/daijro/camoufox/releases/download/v${CAMOUFOX_VERSION}-${CAMOUFOX_RELEASE}/camoufox-${CAMOUFOX_VERSION}-${CAMOUFOX_RELEASE}-lin.x86_64.zip" -o /tmp/camoufox.zip \
+    && unzip -q /tmp/camoufox.zip -d /out \
+    && test -f /out/camoufox-bin || (echo "camoufox-bin missing" && ls -R /out && exit 1) \
+    && chmod -R 755 /out \
+    && printf '{"version":"%s","release":"%s"}\n' "$CAMOUFOX_VERSION" "$CAMOUFOX_RELEASE" > /out/version.json
+
+# ─── Stage 3: Build Camofox Browser fork from source ──────────────
+# Build the user's local fork of Camofox Browser (sibling submodule) instead
+# of pulling the upstream ghcr.io image, so changes to the fork (including
+# the GET /sessions/:userId/cookies endpoint) are picked up on rebuild.
+FROM node:22-slim AS camofox-base
+
+# Firefox / Camoufox runtime dependencies (mirrors camofox-browser/Dockerfile)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgtk-3-0 libdbus-glib-1-2 libxt6 libasound2 \
+    libx11-xcb1 libxcomposite1 libxcursor1 libxdamage1 libxfixes3 \
+    libxi6 libxrandr2 libxrender1 libxss1 libxtst6 \
+    libegl1-mesa libgl1-mesa-dri libgbm1 \
+    xvfb \
+    fonts-liberation fonts-noto-color-emoji fontconfig \
+    ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Inherit the Camoufox binary from the camoufox-bin stage
+COPY --from=camoufox-bin /out /root/.cache/camoufox
+
+# yt-dlp for YouTube transcript extraction
+RUN curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux -o /usr/local/bin/yt-dlp \
+    && chmod +x /usr/local/bin/yt-dlp
+
+WORKDIR /app
+
+# Install Camofox Browser fork dependencies (production only)
+COPY camofox-browser/package.json camofox-browser/package-lock.json* ./
+RUN npm install --omit=dev --ignore-scripts --no-audit --no-fund
+
+# Copy the rest of the fork source. server.js is ESM (type: module),
+# so we run it directly without a build step.
+COPY camofox-browser/server.js ./
+COPY camofox-browser/camofox.config.json ./
+COPY camofox-browser/lib ./lib
+COPY camofox-browser/plugins ./plugins
+COPY camofox-browser/scripts ./scripts
+COPY camofox-browser/bin ./bin
+
+# Optional: install default plugin deps (apt + post-install hooks). Skip
+# failures — the server still boots without every plugin's deps.
+RUN sh scripts/install-plugin-deps.sh || true
+
+ENV NODE_ENV=production
+ENV CAMOFOX_PORT=9377
+
+EXPOSE 9377
+
+# ─── Stage 4: Final image ─────────────────────────────────────────
+FROM camofox-base
+
+# Switch to root for the multi-process supervisor install
 USER root
 
-# supervisord for multi-process management
-RUN apt-get update && apt-get install -y supervisor && rm -rf /var/lib/apt/lists/*
-
-# ── Entrypoint wrapper — runs camofox's compiled server.js ──
-COPY camofox-browser/entrypoint-camofox.sh /app/entrypoint-camofox.sh
-RUN chmod +x /app/entrypoint-camofox.sh
+RUN apt-get update && apt-get install -y --no-install-recommends supervisor \
+    && rm -rf /var/lib/apt/lists/*
 
 # ── Install OpenCLI globally ──────────────────────────────────────
 COPY --from=opencli-build /app/dist /opt/opencli/dist
