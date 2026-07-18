@@ -91,7 +91,7 @@ ARG GEOLITE_TAG
 # GitHub release tags include a `v` prefix (e.g. v152.0.4-beta.27). The
 # project splits the tag as VERSION + RELEASE; the URL concatenates them with
 # an explicit `v` so build args stay decoupled from the prefix.
-RUN mkdir -p /tmp/camoufox-build \
+RUN mkdir -p /tmp/camoufox-build /home/node/.cache/camoufox \
     && curl -fSL --retry 3 \
        "https://github.com/daijro/camoufox/releases/download/v${CAMOUFOX_VERSION}-${CAMOUFOX_RELEASE}/camoufox-${CAMOUFOX_VERSION}-${CAMOUFOX_RELEASE}-lin.x86_64.zip" \
        -o /tmp/camoufox-build/camoufox.zip \
