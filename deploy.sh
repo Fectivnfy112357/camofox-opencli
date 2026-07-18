@@ -56,6 +56,16 @@ if [ "$BUILD" -eq 1 ]; then
   if [ -d /root/.cache/camoufox ]; then
     CAMOFOX_BUILD_DIR=$(mktemp -d)
     cp -a /root/.cache/camoufox/. "$CAMOFOX_BUILD_DIR"/
+    # camoufox-js's Version.fromPath requires /root/.cache/camoufox/version.json
+    # at launch time. The upstream zip doesn't carry one (camoufox-js writes it
+    # itself after a successful fetch). Synthesize it here from the release tag
+    # baked into camoufox-bin --version, falling back to a hard-coded default
+    # when --version isn't supported.
+    if [ ! -f "$CAMOFOX_BUILD_DIR/version.json" ]; then
+      TAG=$("$CAMOFOX_BUILD_DIR/camoufox-bin" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+' | head -1 || true)
+      TAG=${TAG:-152.0.4-beta.27}
+      printf '{"version":"%s"}\n' "${TAG#v}" > "$CAMOFOX_BUILD_DIR/version.json"
+    fi
     export CAMOFOX_CACHE_DIR="$CAMOFOX_BUILD_DIR"
     trap 'rm -rf "$CAMOFOX_BUILD_DIR"' EXIT
   fi
