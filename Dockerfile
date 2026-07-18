@@ -114,6 +114,12 @@ USER root
 # failures — the server still boots without every plugin's deps.
 RUN sh scripts/install-plugin-deps.sh || true
 
+# Pre-create the opencli scratch dirs that the opencli-daemon supervisor
+# program (user=node) creates lazily on first run. Without this the daemon
+# gets EACCES when mkdir /home/node/.opencli/clis as root.
+RUN mkdir -p /home/node/.opencli /home/node/.cache/camoufox \
+ && chown -R node:node /home/node/.opencli
+
 # Inject the two runtime assets camoufox-js pulls at browser launch time
 # (mozilla.org / P3TERX/GeoLite.mmdb github release). They arrive via the
 # `runtime-addons` named build context populated by deploy.sh from the host
