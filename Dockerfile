@@ -83,14 +83,23 @@ WORKDIR /app
 # ./scripts/ and must be present BEFORE npm ci runs lifecycle scripts.
 COPY camofox-browser/ ./
 
-# Install Camofox Browser fork dependencies (production only). Do NOT pass
-# --ignore-scripts — the fork's postinstall.js runs `npx camoufox-js fetch`
-# to populate /root/.cache/camoufox/, which the server picks up at startup.
-RUN npm ci --omit=dev --no-audit --no-fund
+# Install Camofox Browser fork dependencies (production only). Pass
+# --ignore-scripts here because the fork's postinstall.js runs
+# `npx camoufox-js fetch` through the `impit` native client, which bypasses
+# $HTTP_PROXY and is unreliable in a build-time Docker container. The
+# Camoufox binary + assets are injected separately from the host cache (see
+# the COPY below) so this stage doesn't need network access at all.
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 
 # Optional: install default plugin deps (apt + post-install hooks). Skip
 # failures — the server still boots without every plugin's deps.
 RUN sh scripts/install-plugin-deps.sh || true
+
+# Inject the Camoufox binary bundle into the image without going through
+# `camoufox-js fetch`. The build context `camoufox-cache` must be supplied by
+# the caller (deploy.sh provides it from the host's /root/.cache/camoufox
+# via `docker build --build-context camoufox=/root/.cache/camoufox`).
+COPY --from=camoufox . /root/.cache/camoufox/
 
 ENV NODE_ENV=production
 ENV CAMOFOX_PORT=9377
