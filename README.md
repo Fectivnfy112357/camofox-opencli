@@ -166,7 +166,7 @@ GeoLite2-City.mmdb, so you only need to pull — no network access, no build
 context preparation.
 
 ```bash
-docker pull ghcr.io/festivnfy112357/camofox-opencli:latest
+docker pull ghcr.io/fectivnfy112357/camofox-opencli:latest
 docker run -d --name camofox \
   --privileged --shm-size=2g \
   -p 9377:9377 -p 6080:6080 -p 19825:19825 -p 8080:8080 \
@@ -174,7 +174,7 @@ docker run -d --name camofox \
   -e GATEWAY_API_KEY=$(openssl rand -hex 32) \
   -e CAMOFOX_API_KEY=my_secret_api_key_123 \
   -v camofox_data:/home/node/.camofox \
-  ghcr.io/festivnfy112357/camofox-opencli:latest
+  ghcr.io/fectivnfy112357/camofox-opencli:latest
 ```
 
 Then open `http://localhost:6080` (noVNC) and log in to the sites you want
