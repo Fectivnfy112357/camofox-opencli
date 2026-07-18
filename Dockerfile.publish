@@ -88,9 +88,12 @@ ARG CAMOUFOX_RELEASE
 ARG GEOLITE_TAG
 
 # 3a) camoufox binary bundle (the Forge Firefox binary + libs).
+# GitHub release tags include a `v` prefix (e.g. v152.0.4-beta.27). The
+# project splits the tag as VERSION + RELEASE; the URL concatenates them with
+# an explicit `v` so build args stay decoupled from the prefix.
 RUN mkdir -p /tmp/camoufox-build \
     && curl -fSL --retry 3 \
-       "https://github.com/daijro/camoufox/releases/download/${CAMOUFOX_VERSION}-${CAMOUFOX_RELEASE}/camoufox-${CAMOUFOX_VERSION}-${CAMOUFOX_RELEASE}-lin.x86_64.zip" \
+       "https://github.com/daijro/camoufox/releases/download/v${CAMOUFOX_VERSION}-${CAMOUFOX_RELEASE}/camoufox-${CAMOUFOX_VERSION}-${CAMOUFOX_RELEASE}-lin.x86_64.zip" \
        -o /tmp/camoufox-build/camoufox.zip \
     && unzip -q /tmp/camoufox-build/camoufox.zip -d /home/node/.cache/camoufox/ \
     && rm -rf /tmp/camoufox-build \
