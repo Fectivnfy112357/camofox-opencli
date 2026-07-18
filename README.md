@@ -158,11 +158,46 @@ The `login` tool returns a noVNC URL — open it in your browser to scan a QR co
 
 ## Quick Deploy
 
+### Option A — Pre-built image (recommended)
+
+A self-contained image is published to GitHub Container Registry on every
+change to `main`. The build bakes in the Camoufox binary, uBlock Origin and
+GeoLite2-City.mmdb, so you only need to pull — no network access, no build
+context preparation.
+
+```bash
+docker pull ghcr.io/Festivnfy112357/camofox-opencli:latest
+docker run -d --name camofox \
+  --privileged --shm-size=2g \
+  -p 9377:9377 -p 6080:6080 -p 19825:19825 -p 8080:8080 \
+  -e CAMOFOX_USER_ID=yourname \
+  -e GATEWAY_API_KEY=$(openssl rand -hex 32) \
+  -e CAMOFOX_API_KEY=my_secret_api_key_123 \
+  -v camofox_data:/home/node/.camofox \
+  ghcr.io/Festivnfy112357/camofox-opencli:latest
+```
+
+Then open `http://localhost:6080` (noVNC) and log in to the sites you want
+through a real browser. Cookies are persisted in `camofox_data` so subsequent
+runs stay signed in.
+
+### Option B — Build from source
+
+Forks are checked in as git submodules, so a build needs your fork URLs in
+`.gitmodules`. Run this in a clean checkout:
+
 ```bash
 git clone --recurse-submodules https://github.com/Fectivnfy112357/camofox-opencli.git
 cd camofox-opencli
 docker compose build --no-cache
 docker compose up -d
+```
+
+If you only want OpenCLI / Shim changes to hot-reload without rebuilding the
+image, prefer `--no-build`:
+
+```bash
+./deploy.sh --no-build
 ```
 
 ## Usage
