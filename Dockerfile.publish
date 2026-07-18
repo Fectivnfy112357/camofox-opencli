@@ -88,17 +88,17 @@ ARG CAMOUFOX_RELEASE
 ARG GEOLITE_TAG
 
 # 3a) camoufox binary bundle (the Forge Firefox binary + libs).
-# GitHub release tags include a `v` prefix (e.g. v152.0.4-beta.27). The
-# project splits the tag as VERSION + RELEASE; the URL concatenates them with
-# an explicit `v` so build args stay decoupled from the prefix.
-RUN mkdir -p /tmp/camoufox-build /home/node/.cache/camoufox \
-    && curl -fSL --retry 3 \
+# GitHub release tags include a `v` prefix (e.g. v152.0.4-beta.27).
+# Each step is split into its own RUN so any failure shows up as a discrete
+# build layer with a clear error line in GitHub Actions' log viewer.
+RUN mkdir -p /tmp/camoufox-build /home/node/.cache/camoufox
+RUN curl -fSL --retry 3 \
        "https://github.com/daijro/camoufox/releases/download/v${CAMOUFOX_VERSION}-${CAMOUFOX_RELEASE}/camoufox-${CAMOUFOX_VERSION}-${CAMOUFOX_RELEASE}-lin.x86_64.zip" \
-       -o /tmp/camoufox-build/camoufox.zip \
-    && unzip -q /tmp/camoufox-build/camoufox.zip -d /home/node/.cache/camoufox/ \
-    && rm -rf /tmp/camoufox-build \
-    && printf '{"version":"%s","release":"%s"}\n' "${CAMOUFOX_VERSION}" "${CAMOUFOX_RELEASE}" \
-       > /home/node/.cache/camoufox/version.json
+       -o /tmp/camoufox-build/camoufox.zip
+RUN unzip -q /tmp/camoufox-build/camoufox.zip -d /home/node/.cache/camoufox/
+RUN rm -rf /tmp/camoufox-build
+RUN printf '{"version":"%s","release":"%s"}\n' "${CAMOUFOX_VERSION}" "${CAMOUFOX_RELEASE}" \
+    > /home/node/.cache/camoufox/version.json
 
 # 3b) uBlock Origin (unzipped; camoufox-js requires manifest.json inside).
 RUN mkdir -p /tmp/ubo-build \
