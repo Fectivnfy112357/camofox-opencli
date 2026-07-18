@@ -42,8 +42,25 @@ RUN npx tsc
 # the GET /sessions/:userId/cookies endpoint) are picked up on rebuild.
 FROM node:22-slim AS camofox-base
 
-# Firefox / Camoufox runtime dependencies (mirrors camofox-browser/Dockerfile)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Build-time network: the Docker build container runs on the bridge network
+# and the host's v2raya tun hijack does not reach into it (raw `curl
+# https://github.com` times out). Point apt/curl/npm at the host v2raya HTTP
+# proxy so debian packages, the yt-dlp binary, and `npx camoufox-js fetch`
+# (run by the fork's postinstall) can reach github.com / objects.githubusercontent.com.
+# Override per-call with `--build-arg BUILDER_HTTP_PROXY=` to disable or change
+# the proxy host (e.g. "http://host.docker.internal:20172" on host-gateway setups).
+ARG BUILDER_HTTP_PROXY=http://172.17.0.1:20172
+ENV HTTP_PROXY=${BUILDER_HTTP_PROXY} \
+    HTTPS_PROXY=${BUILDER_HTTP_PROXY} \
+    http_proxy=${BUILDER_HTTP_PROXY} \
+    https_proxy=${BUILDER_HTTP_PROXY} \
+    npm_config_strict_ssl=false
+
+# Firefox / Camoufox runtime dependencies (mirrors camofox-browser/Dockerfile).
+# `Acquire::http::Proxy` is required — apt does not consult $HTTP_PROXY.
+RUN echo "Acquire::http::Proxy \"${BUILDER_HTTP_PROXY}\";\nAcquire::https::Proxy \"${BUILDER_HTTP_PROXY}\";" \
+        > /etc/apt/apt.conf.d/99proxy \
+    && apt-get update && apt-get install -y --no-install-recommends \
     libgtk-3-0 libdbus-glib-1-2 libxt6 libasound2 \
     libx11-xcb1 libxcomposite1 libxcursor1 libxdamage1 libxfixes3 \
     libxi6 libxrandr2 libxrender1 libxss1 libxtst6 \
@@ -51,10 +68,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xvfb \
     fonts-liberation fonts-noto-color-emoji fontconfig \
     ca-certificates curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -f /etc/apt/apt.conf.d/99proxy
 
 # yt-dlp for YouTube transcript extraction
-RUN curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux -o /usr/local/bin/yt-dlp \
+RUN curl -fsSL --proxy "${BUILDER_HTTP_PROXY}" \
+    https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux -o /usr/local/bin/yt-dlp \
     && chmod +x /usr/local/bin/yt-dlp
 
 WORKDIR /app
@@ -85,10 +104,19 @@ EXPOSE 9377
 FROM camofox-base
 
 # Switch to root for the multi-process supervisor install
+ARG BUILDER_HTTP_PROXY=http://172.17.0.1:20172
+ENV HTTP_PROXY=${BUILDER_HTTP_PROXY} \
+    HTTPS_PROXY=${BUILDER_HTTP_PROXY} \
+    http_proxy=${BUILDER_HTTP_PROXY} \
+    https_proxy=${BUILDER_HTTP_PROXY}
+
 USER root
 
-RUN apt-get update && apt-get install -y --no-install-recommends supervisor \
-    && rm -rf /var/lib/apt/lists/*
+RUN echo "Acquire::http::Proxy \"${BUILDER_HTTP_PROXY}\";\nAcquire::https::Proxy \"${BUILDER_HTTP_PROXY}\";" \
+        > /etc/apt/apt.conf.d/99proxy \
+    && apt-get update && apt-get install -y --no-install-recommends supervisor \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -f /etc/apt/apt.conf.d/99proxy
 
 # ── Install OpenCLI globally ──────────────────────────────────────
 COPY --from=opencli-build /app/dist /opt/opencli/dist
