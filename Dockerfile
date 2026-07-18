@@ -80,7 +80,10 @@ WORKDIR /app
 
 # Install Camofox Browser fork dependencies (production only)
 COPY camofox-browser/package.json camofox-browser/package-lock.json* ./
-RUN npm install --omit=dev --ignore-scripts --no-audit --no-fund
+# Install Camofox Browser fork dependencies (production only). Do NOT pass
+# --ignore-scripts — the fork's postinstall.js runs `npx camoufox-js fetch`
+# to populate /root/.cache/camoufox/, which the server picks up at startup.
+RUN npm ci --omit=dev --no-audit --no-fund
 
 # Copy the rest of the fork source. server.js is ESM (type: module),
 # so we run it directly without a build step.
