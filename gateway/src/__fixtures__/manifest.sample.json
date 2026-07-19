@@ -1,0 +1,8 @@
+[
+  { "site": "bilibili", "name": "search", "description": "搜索B站视频",
+    "access": "read",
+    "args": [{ "name": "keyword", "type": "str", "required": true, "positional": true, "help": "关键词" },
+             { "name": "limit", "type": "int", "required": false, "help": "数量" }] },
+  { "site": "bilibili", "name": "comment", "description": "发评论", "access": "write", "args": [] },
+  { "site": "hackernews", "name": "top", "description": "热门", "access": "read", "args": [] }
+]
