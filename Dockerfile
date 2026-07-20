@@ -60,10 +60,12 @@ RUN npm ci --ignore-scripts \
  && npm prune --omit=dev
 
 # Pre-warm Camoufox binary cache so first browser launch isn't a 300MB
-# download. Tolerated failure: `npx camoufox-js fetch` exits non-zero on
-# some networks; runtime retries as long as /home/node/.cache/camoufox
-# was populated by mounting the host volume in compose.
-RUN npx --yes camoufox-js fetch || true
+# download. `camoufox-js fetch` may hang on networks that block the
+# release CDN; wrap with `timeout --kill-after=10s 90s` and tolerate any
+# failure: the runtime container will retry via HTTPS_PROXY through
+# host.docker.internal (camofox itself fetches on first launch).
+RUN timeout --kill-after=10s 90s npx --yes camoufox-js fetch || \
+    echo "camoufox-js fetch skipped (timeout/error) — runtime will retry"
 
 # Trim sources + lockfiles we no longer need at runtime.
 RUN rm -rf node_modules/.cache src tsconfig.json package-lock.json
