@@ -24,6 +24,14 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Required for first-time push to ghcr.io/fectivnfy112357/camofox-opencli
+    # — without packages:write, GHCR rejects the push with
+    # "denied: permission_denied: The token provided does not match
+    # expected scopes." even when the repo's default workflow
+    # permission is set to "write".
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,12 +48,11 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          # Prefer the user-provided GHCR_TOKEN (PAT with write:packages)
-          # over the auto-issued GITHUB_TOKEN — the latter is read-only on
-          # repos whose default workflow permission is "read", which
-          # blocks the very first push (GHCR returns "owner not found"
-          # until a package is created, and the GITHUB_TOKEN can't do it).
-          password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
+          # Use the auto-issued GITHUB_TOKEN — the repo's default
+          # workflow permission is set to "write" via the REST API
+          # (default_workflow_permissions: write), which grants
+          # packages:write for first-time package creation on GHCR.
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Clone camofox-browser
         run: |
