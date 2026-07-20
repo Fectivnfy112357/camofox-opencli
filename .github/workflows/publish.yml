@@ -18,7 +18,7 @@ env:
   # expression parser doesn't allow `|` filters inside multi-line
   # `tags:` strings, so the lowercase owner is hard-coded here. Update
   # this when transferring the repo.
-  IMAGE_OWNER: festivnfy112357
+  IMAGE_OWNER: fectivnfy112357
   IMAGE_NAME: camofox-opencli
 
 jobs:
