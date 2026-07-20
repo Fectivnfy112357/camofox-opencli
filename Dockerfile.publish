@@ -46,9 +46,9 @@ RUN npm ci --ignore-scripts \
 # overridden.
 ARG CAMOUFOX_RELEASE_TAG=v152.0.4-beta.28
 RUN mkdir -p /tmp/cb-bin && cd /tmp/cb-bin \
-    && curl -fsSL "https://github.com/jo-inc/camofox-browser/releases/download/${CAMOUFOX_RELEASE_TAG}/camoufox-bin.zip" -o camoufox.zip \
-    && curl -fsSL "https://github.com/jo-inc/camofox-browser/releases/download/${CAMOUFOX_RELEASE_TAG}/version.json" -o version.json \
-    && curl -fsSL "https://github.com/jo-inc/camofox-browser/releases/download/${CAMOUFOX_RELEASE_TAG}/GeoLite2-City.mmdb" -o GeoLite2-City.mmdb \
+    && curl -fsSL "https://github.com/Fectivnfy112357/camofox-browser/releases/download/${CAMOUFOX_RELEASE_TAG}/camoufox-bin.zip" -o camoufox.zip \
+    && curl -fsSL "https://github.com/Fectivnfy112357/camofox-browser/releases/download/${CAMOUFOX_RELEASE_TAG}/version.json" -o version.json \
+    && curl -fsSL "https://github.com/Fectivnfy112357/camofox-browser/releases/download/${CAMOUFOX_RELEASE_TAG}/GeoLite2-City.mmdb" -o GeoLite2-City.mmdb \
     && mkdir -p /home/node/.cache/camoufox \
     && chown -R node:node /home/node/.cache /tmp/cb-bin \
     && unzip -q camoufox.zip -d /home/node/.cache/camoufox \
