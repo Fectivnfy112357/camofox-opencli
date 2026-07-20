@@ -67,8 +67,8 @@ jobs:
           file: Dockerfile.publish
           push: ${{ github.event_name != 'pull_request' }}
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository_owner | lower }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.VERSION }}
-            ${{ env.REGISTRY }}/${{ github.repository_owner | lower }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.SHORT_SHA }}
+            ${{ env.REGISTRY }}/${{ toLowerCase(github.repository_owner) }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.VERSION }}
+            ${{ env.REGISTRY }}/${{ toLowerCase(github.repository_owner) }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.SHORT_SHA }}
           labels: |
             org.opencontainers.image.title=camofox-opencli
             org.opencontainers.image.description=Cloud OpenCLI with anti-detection Camofox browser + 163+ site adapters + MCP gateway
