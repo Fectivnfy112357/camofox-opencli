@@ -14,8 +14,10 @@ env:
   REGISTRY: ghcr.io
   # GHCR normalizes package paths to lowercase — the GitHub repo name
   # `Fectivnfy112357/camofox-opencli` would otherwise be rejected by
-  # buildx with "repository name must be lowercase".
-  IMAGE_NAME: ${{ github.repository_owner | lower }}/camofox-opencli
+  # buildx with "repository name must be lowercase". GH Actions
+  # expression parser does not allow `|` filters inside `env:` keys,
+  # so the lowercase happens in the tag line via `toLowerCase()`.
+  IMAGE_NAME: camofox-opencli
 
 jobs:
   build:
@@ -65,8 +67,8 @@ jobs:
           file: Dockerfile.publish
           push: ${{ github.event_name != 'pull_request' }}
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.VERSION }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.SHORT_SHA }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner | lower }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.VERSION }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner | lower }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.SHORT_SHA }}
           labels: |
             org.opencontainers.image.title=camofox-opencli
             org.opencontainers.image.description=Cloud OpenCLI with anti-detection Camofox browser + 163+ site adapters + MCP gateway
