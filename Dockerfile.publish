@@ -41,14 +41,18 @@ RUN npm ci --ignore-scripts \
     && npm prune --omit=dev
 
 # Pre-stage Camoufox: download on the Actions runner (not inside the
-# build) so the v2raya-shared-IP rate limit never bites. Reads the
-# release tag from the camofox-browser fork's package.json if not
-# overridden.
-ARG CAMOUFOX_RELEASE_TAG=v152.0.4-beta.28
+# build) so the v2raya-shared-IP rate limit never bites. Sources match
+# what deploy.sh uses locally:
+#   - Camoufox binary from daijro/camoufox (zip name has arch suffix)
+#   - GeoLite2-City.mmdb from P3TERX/GeoLite.mmdb
+#   - version.json synthesized (camoufox-js reads it as a sidecar)
+ARG CAMOUFOX_TAG=v152.0.4-beta.28
 RUN mkdir -p /tmp/cb-bin && cd /tmp/cb-bin \
-    && curl -fsSL "https://github.com/Fectivnfy112357/camofox-browser/releases/download/${CAMOUFOX_RELEASE_TAG}/camoufox-bin.zip" -o camoufox.zip \
-    && curl -fsSL "https://github.com/Fectivnfy112357/camofox-browser/releases/download/${CAMOUFOX_RELEASE_TAG}/version.json" -o version.json \
-    && curl -fsSL "https://github.com/Fectivnfy112357/camofox-browser/releases/download/${CAMOUFOX_RELEASE_TAG}/GeoLite2-City.mmdb" -o GeoLite2-City.mmdb \
+    && curl -fsSL "https://api.github.com/repos/daijro/camoufox/releases/tags/${CAMOUFOX_TAG}" -o rel.json \
+    && ASSET_URL=$(python3 -c "import json; d=json.load(open('rel.json')); a=[x['browser_download_url'] for x in d['assets'] if 'lin.x86_64' in x['name']]; print(a[0])") \
+    && curl -fsSL "$ASSET_URL" -o camoufox.zip \
+    && curl -fsSL "https://github.com/P3TERX/GeoLite.mmdb/releases/latest/download/GeoLite2-City.mmdb" -o GeoLite2-City.mmdb \
+    && printf '{"version":"152.0.4","release":"%s"}' "${CAMOUFOX_TAG}" > version.json \
     && mkdir -p /home/node/.cache/camoufox \
     && chown -R node:node /home/node/.cache /tmp/cb-bin \
     && unzip -q camoufox.zip -d /home/node/.cache/camoufox \
