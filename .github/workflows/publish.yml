@@ -40,7 +40,12 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          # Prefer the user-provided GHCR_TOKEN (PAT with write:packages)
+          # over the auto-issued GITHUB_TOKEN — the latter is read-only on
+          # repos whose default workflow permission is "read", which
+          # blocks the very first push (GHCR returns "owner not found"
+          # until a package is created, and the GITHUB_TOKEN can't do it).
+          password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Clone camofox-browser
         run: |
