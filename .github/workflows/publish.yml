@@ -12,7 +12,10 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  # GHCR normalizes package paths to lowercase — the GitHub repo name
+  # `Fectivnfy112357/camofox-opencli` would otherwise be rejected by
+  # buildx with "repository name must be lowercase".
+  IMAGE_NAME: ${{ github.repository_owner | lower }}/camofox-opencli
 
 jobs:
   build:
