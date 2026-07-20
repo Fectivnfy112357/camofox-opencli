@@ -21,9 +21,12 @@
 FROM node:22-slim AS cb-build
 
 # System deps Camoufox (Firefox) needs at runtime — kept identical to the
-# upstream camofox-browser fork so the binary works unchanged.
+# upstream camofox-browser fork so the binary works unchanged. build-essential
+# + python3 are present so npm postinstall can compile better-sqlite3's native
+# binding (without them camoufox fails with "Could not locate the bindings
+# file" when launching any persistent browser context).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        xvfb x11vnc python3-websockify \
+        xvfb x11vnc python3-websockify python3 make g++ \
         libgtk-3-0 libdbus-glib-1-2 libxt6 libx11-xcb1 \
         libasound2 libdrm2 libgbm1 libxcomposite1 libxcursor1 \
         libxdamage1 libxfixes3 libxi6 libxrandr2 libxrender1 \
@@ -55,8 +58,15 @@ COPY --from=camofox-browser . /build
 
 # Install once (includes devDeps so tsc is available), build, then prune
 # dev-only entries in place. Avoids re-running the install resolver twice.
+# Use --ignore-scripts to skip the camoufox-js postinstall (now redundant
+# since we vendor the binary explicitly above) but THEN rebuild
+# better-sqlite3 so its native binding is compiled for this image's Node
+# version. Without the explicit rebuild, npm ci --ignore-scripts leaves
+# the .node file out and camofox crashes with "Could not locate the
+# bindings file" on first POST /tabs.
 RUN npm ci --ignore-scripts \
  && npm run build \
+ && npm rebuild better-sqlite3 \
  && npm prune --omit=dev
 
 # Pre-stage the Camoufox Firefox binary into /home/node/.cache/camoufox/
