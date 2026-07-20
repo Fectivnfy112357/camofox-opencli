@@ -119,9 +119,18 @@ export async function getVncUrl(
     await createNavTab(cfg, fetchImpl, opts.url);
   }
 
-  const externalHost =
-    opts.clientHost?.split(':')[0] ||
-    cfg.publicVncHost?.split(':')[0] ||
-    new URL(cfg.camofoxUrl).hostname;
+  const clientHost = opts.clientHost?.split(':')[0]?.trim();
+  const configuredHost = cfg.publicVncHost?.split(':')[0]?.trim();
+  const externalHost = clientHost || configuredHost;
+  if (!externalHost) {
+    // No client Host header (e.g. unix socket) AND no operator override.
+    // Refuse to silently default to localhost — every install points the MCP
+    // server at a different external host (textvision.top, my-tunnel.ngrok.io,
+    // host.docker.internal, etc.), so the only safe behaviour is to fail
+    // loudly and let the caller set PUBLIC_VNC_HOST or send a Host header.
+    throw new Error(
+      'cannot determine external VNC host: pass PUBLIC_VNC_HOST env var or send an X-Forwarded-Host / Host header',
+    );
+  }
   return rewriteVncHost(vnc, externalHost);
 }

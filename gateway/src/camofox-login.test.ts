@@ -33,7 +33,7 @@ describe('getVncUrl', () => {
       if (url.endsWith('/toggle-display')) return json({ vncUrl: 'http://127.0.0.1:6080/vnc.html?t=first' });
       return json({});
     });
-    const out = await getVncUrl(cfg, {}, fake as any);
+    const out = await getVncUrl(cfg, { clientHost: 'textvision.top' }, fake as any);
     expect(out).toBe('http://textvision.top:6080/vnc.html?t=first');
     // No cycle when first succeeds — exactly one toggle call
     expect(calls.filter((c) => c.endsWith('/toggle-display'))).toHaveLength(1);
@@ -48,7 +48,7 @@ describe('getVncUrl', () => {
       if (url.endsWith('/toggle-display')) return json({ vncUrl: 'http://localhost:6080/x' });
       return json({});
     });
-    const out = await getVncUrl(cfg, {}, fake as any);
+    const out = await getVncUrl(cfg, { clientHost: 'textvision.top' }, fake as any);
     expect(out).toBe('http://textvision.top:6080/x');
   });
 
@@ -63,7 +63,7 @@ describe('getVncUrl', () => {
       }
       return json({});
     });
-    const out = await getVncUrl(cfg, {}, fake as any);
+    const out = await getVncUrl(cfg, { clientHost: 'textvision.top' }, fake as any);
     expect(out).toBe('http://textvision.top:6080/vnc.html?t=cycled');
     expect(toggleCount).toBeGreaterThanOrEqual(2);
   });
@@ -78,7 +78,9 @@ describe('getVncUrl', () => {
       }
       return json({});
     });
-    await expect(getVncUrl(cfg, {}, fake as any)).rejects.toThrow(/vncUrl/);
+    await expect(
+      getVncUrl(cfg, { clientHost: 'textvision.top' }, fake as any),
+    ).rejects.toThrow(/vncUrl/);
     // 1 initial + 1 headless=false + 3 virtual retries = 5 toggles
     expect(toggleCalls.length).toBe(5);
   });
@@ -95,7 +97,11 @@ describe('getVncUrl', () => {
       if (url.includes('/tabs/navtab/navigate')) return json({ ok: true });
       return json({});
     });
-    const out = await getVncUrl(cfg, { url: 'https://www.zhihu.com' }, fake as any);
+    const out = await getVncUrl(
+      cfg,
+      { url: 'https://www.zhihu.com', clientHost: 'textvision.top' },
+      fake as any,
+    );
     expect(out).toBe('http://textvision.top:6080/v');
     // toggle must come before create-tab; create-tab before navigate
     const toggleIdx = order.findIndex((c) => c.endsWith('/toggle-display'));
@@ -114,5 +120,28 @@ describe('getVncUrl', () => {
     });
     const out = await getVncUrl(cfg, { clientHost: 'people.example.com:443' }, fake as any);
     expect(out).toBe('http://people.example.com:6080/vnc.html?x=1');
+  });
+
+  it('falls back to PUBLIC_VNC_HOST when clientHost absent (per-instance config)', async () => {
+    const fake = vi.fn(async (url: string) => {
+      if (url.includes('/tabs?')) return json([{ tabId: 't1' }]);
+      if (url.endsWith('/toggle-display')) return json({ vncUrl: 'http://localhost:6080/v' });
+      return json({});
+    });
+    const cfgNoClient: Config = { ...cfg, publicVncHost: 'static.example.com' };
+    const out = await getVncUrl(cfgNoClient, {}, fake as any);
+    expect(out).toBe('http://static.example.com:6080/v');
+  });
+
+  it('throws if neither clientHost nor PUBLIC_VNC_HOST is set — no silent localhost leak', async () => {
+    const fake = vi.fn(async (url: string) => {
+      if (url.includes('/tabs?')) return json([{ tabId: 't1' }]);
+      if (url.endsWith('/toggle-display')) return json({ vncUrl: 'http://localhost:6080/v' });
+      return json({});
+    });
+    const cfgDefault: Config = { ...cfg, publicVncHost: null };
+    await expect(getVncUrl(cfgDefault, {}, fake as any)).rejects.toThrow(
+      /PUBLIC_VNC_HOST|Host header/,
+    );
   });
 });
