@@ -114,9 +114,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # noVNC static client (re-installed here so the runtime layer is self-
-# contained even if Stage 1 changed in the future).
-RUN git clone --depth 1 https://github.com/novnc/noVNC.git /opt/noVNC \
- && rm -rf /opt/noVNC/.git
+# contained even if Stage 1 changed in the future). Same tarball fallback
+# as cb-build (some base images block git-over-HTTPS).
+RUN set -e; \
+    if git clone --depth 1 https://github.com/novnc/noVNC.git /opt/noVNC 2>/dev/null; then \
+        rm -rf /opt/noVNC/.git; \
+    else \
+        echo "git clone failed, falling back to codeload tarball"; \
+        curl -fsSL https://codeload.github.com/novnc/noVNC/tar.gz/refs/heads/master -o /tmp/novnc.tgz \
+        && mkdir -p /opt/noVNC \
+        && tar -xzf /tmp/novnc.tgz -C /opt/noVNC --strip-components=1 \
+        && rm /tmp/novnc.tgz; \
+    fi
 
 # yt-dlp lives in the runtime layer — handy for transcript adapters and
 # already required by camofox-browser for YouTube extraction.
