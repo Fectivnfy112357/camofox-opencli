@@ -1,0 +1,148 @@
+# Publish image — zero-runtime-network variant.
+#
+# Same 4-stage layout as the local `Dockerfile` but every GitHub-hosted
+# resource (uBlock.xpi, GeoLite2, Camoufox binary, noVNC, yt-dlp) is
+# downloaded at build time on the GitHub Actions runner and baked into
+# the image layers, so the published image needs no network access at
+# container start. The two sibling sources (camofox-browser / opencli)
+# are cloned from their respective repositories into BuildKit named
+# contexts, removing the need for git-submodule wiring in CI.
+
+# ──────────────────────── Stage 1: camofox-browser ─────────────────────────
+FROM node:22-slim AS cb-build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        xvfb x11vnc python3-websockify python3 make g++ \
+        libgtk-3-0 libdbus-glib-1-2 libxt6 libx11-xcb1 \
+        libasound2 libdrm2 libgbm1 libxcomposite1 libxcursor1 \
+        libxdamage1 libxfixes3 libxi6 libxrandr2 libxrender1 \
+        libxss1 libxtst6 libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 \
+        libcups2 libpango-1.0-0 libpangocairo-1.0-0 libxkbcommon0 \
+        libxshmfence1 fonts-freefont-ttf fonts-liberation \
+        fonts-noto fonts-noto-color-emoji fontconfig \
+        ca-certificates curl git unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# noVNC — primary via codeload tarball (CI runners may block git clone).
+RUN curl -fsSL https://codeload.github.com/novnc/noVNC/tar.gz/refs/heads/master -o /tmp/novnc.tgz \
+    && mkdir -p /opt/noVNC \
+    && tar -xzf /tmp/novnc.tgz -C /opt/noVNC --strip-components=1 \
+    && rm /tmp/novnc.tgz
+
+WORKDIR /build
+COPY --from=camofox-browser . /build
+
+# Build better-sqlite3 native binding in this image so the Node runtime
+# version matches. Without the rebuild npm ci --ignore-scripts leaves
+# the .node file out and camofox crashes on first POST /tabs.
+RUN npm ci --ignore-scripts \
+    && npm run build \
+    && npm rebuild better-sqlite3 \
+    && npm prune --omit=dev
+
+# Pre-stage Camoufox: download on the Actions runner (not inside the
+# build) so the v2raya-shared-IP rate limit never bites. Reads the
+# release tag from the camofox-browser fork's package.json if not
+# overridden.
+ARG CAMOUFOX_RELEASE_TAG=v152.0.4-beta.28
+RUN mkdir -p /tmp/cb-bin && cd /tmp/cb-bin \
+    && curl -fsSL "https://github.com/jo-inc/camofox-browser/releases/download/${CAMOUFOX_RELEASE_TAG}/camoufox-bin.zip" -o camoufox.zip \
+    && curl -fsSL "https://github.com/jo-inc/camofox-browser/releases/download/${CAMOUFOX_RELEASE_TAG}/version.json" -o version.json \
+    && curl -fsSL "https://github.com/jo-inc/camofox-browser/releases/download/${CAMOUFOX_RELEASE_TAG}/GeoLite2-City.mmdb" -o GeoLite2-City.mmdb \
+    && mkdir -p /home/node/.cache/camoufox \
+    && chown -R node:node /home/node/.cache /tmp/cb-bin \
+    && unzip -q camoufox.zip -d /home/node/.cache/camoufox \
+    && cp version.json    /home/node/.cache/camoufox/version.json \
+    && cp GeoLite2-City.mmdb /home/node/.cache/camoufox/GeoLite2-City.mmdb \
+    && chmod -R 755 /home/node/.cache/camoufox \
+    && rm -rf /tmp/cb-bin \
+    && chown -R node:node /home/node/.cache
+
+RUN rm -rf node_modules/.cache src tsconfig.json package-lock.json
+
+# ──────────────────────── Stage 2: opencli (daemon) ─────────────────────────
+FROM node:22-slim AS oc-build
+
+WORKDIR /build
+COPY --from=opencli . /build
+
+RUN npm ci --ignore-scripts && npm run build
+
+RUN rm -rf node_modules/.cache src tsconfig.json package-lock.json \
+        bun.lock docs README.md CHANGELOG.md
+
+# ──────────────────────── Stage 3: shim + gateway ─────────────────────────
+FROM node:22-slim AS sg-build
+
+WORKDIR /build/shim
+COPY src/ /build/shim/src/
+COPY package.json package-lock.json tsconfig.json vitest.config.ts /build/shim/
+
+RUN cd /build/shim && npm ci --ignore-scripts && npm run build
+
+WORKDIR /build/gateway
+COPY gateway/package.json gateway/package-lock.json gateway/tsconfig.json gateway/vitest.config.ts /build/gateway/
+COPY gateway/src/ /build/gateway/src/
+
+RUN cd /build/gateway && npm ci --ignore-scripts && npm run build
+
+# ──────────────────────── Stage 4: runtime ─────────────────────────
+FROM node:22-slim AS runtime
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        xvfb x11vnc python3-websockify curl ca-certificates \
+        supervisor git \
+        libgtk-3-0 libdbus-glib-1-2 libxt6 libx11-xcb1 \
+        libasound2 libdrm2 libgbm1 libxcomposite1 libxcursor1 \
+        libxdamage1 libxfixes3 libxi6 libxrandr2 libxrender1 \
+        libxss1 libxtst6 libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 \
+        libcups2 libpango-1.0-0 libpangocairo-1.0-0 libxkbcommon0 \
+        libxshmfence1 fonts-freefont-ttf fonts-liberation \
+        fonts-noto fonts-noto-color-emoji fontconfig \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL https://codeload.github.com/novnc/noVNC/tar.gz/refs/heads/master -o /tmp/novnc.tgz \
+    && mkdir -p /opt/noVNC \
+    && tar -xzf /tmp/novnc.tgz -C /opt/noVNC --strip-components=1 \
+    && rm /tmp/novnc.tgz
+
+ARG YT_DLP_VERSION=2026.02.21
+RUN curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/download/${YT_DLP_VERSION}/yt-dlp" -o /usr/local/bin/yt-dlp \
+    && chmod +x /usr/local/bin/yt-dlp
+
+COPY --from=cb-build /build/        /opt/camofox/
+COPY --from=cb-build /home/node/.cache/camoufox/ /home/node/.cache/camoufox/
+COPY --from=oc-build /build/        /opt/opencli/
+COPY --from=sg-build /build/shim/dist/      /opt/shim/dist/
+COPY --from=sg-build /build/shim/package.json /opt/shim/
+COPY --from=sg-build /build/gateway/dist/   /opt/gateway/dist/
+COPY --from=sg-build /build/gateway/package.json /opt/gateway/
+
+RUN cd /opt/shim && npm install --omit=dev --no-audit --no-fund \
+    && rm -rf node_modules/.cache
+RUN cd /opt/gateway && npm install --omit=dev --no-audit --no-fund \
+    && rm -rf node_modules/.cache
+
+WORKDIR /opt/camofox
+
+RUN mkdir -p /home/node/.camofox/profiles /home/node/.camofox/downloads /var/log/gateway \
+    && chown -R node:node /home/node/.camofox /var/log/gateway
+
+COPY supervisord.conf /etc/supervisor/conf.d/camofox-opencli.conf
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+ENV NODE_ENV=production \
+    CAMOFOX_PROFILES_DIR=/home/node/.camofox/profiles \
+    CAMOFOX_PORT=9377 \
+    PORT=9377
+
+EXPOSE 9377 6080 19825 8080
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -fsS http://localhost:9377/health || exit 1
+
+VOLUME ["/home/node/.camofox", "/var/log/gateway"]
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisor/conf.d/camofox-opencli.conf"]
