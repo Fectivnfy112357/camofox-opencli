@@ -80,19 +80,21 @@ RUN npm ci --ignore-scripts \
 # which its installer normally does; we materialize it explicitly below.
 ARG CAMOUFOX_RELEASE_TAG=v152.0.4-beta.28
 
-# Bundle the pre-downloaded zip + a small metadata file in the build
-# context. docker-compose.yml should set CAMOUFOX_BIN_DIR (default
-# ./camoufox-bin) to the directory holding the zip.
+# Bundle the pre-downloaded zip + GeoIP DB + a small metadata file in the
+# build context. Both come from authenticated `gh release download` calls
+# on the build host (avoids the v2raya-shared-IP rate limit).
 COPY camoufox-bin/camoufox-bin.zip /tmp/camoufox.zip
 COPY camoufox-bin/version.json    /tmp/version.json
+COPY camoufox-bin/GeoLite2-City.mmdb /tmp/GeoLite2-City.mmdb
 
 RUN mkdir -p /home/node/.cache/camoufox \
  && apt-get update && apt-get install -y --no-install-recommends unzip \
- && chown -R node:node /home/node/.cache /tmp/camoufox.zip /tmp/version.json \
+ && chown -R node:node /home/node/.cache /tmp/camoufox.zip /tmp/version.json /tmp/GeoLite2-City.mmdb \
  && unzip -q /tmp/camoufox.zip -d /home/node/.cache/camoufox \
  && cp /tmp/version.json /home/node/.cache/camoufox/version.json \
+ && cp /tmp/GeoLite2-City.mmdb /home/node/.cache/camoufox/GeoLite2-City.mmdb \
  && chmod -R 755 /home/node/.cache/camoufox \
- && rm /tmp/camoufox.zip /tmp/version.json \
+ && rm /tmp/camoufox.zip /tmp/version.json /tmp/GeoLite2-City.mmdb \
  && apt-get purge -y --auto-remove unzip \
  && chown -R node:node /home/node/.cache
 
