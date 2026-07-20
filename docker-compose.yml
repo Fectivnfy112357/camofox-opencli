@@ -58,6 +58,11 @@ services:
       CAMOFOX_URL: "http://localhost:9377"
       CAMOFOX_USER_ID: "fectivnfy"
       SHIM_PORT: "19825"
+      # Pin camoufox-js to the pre-baked cache directory (set up by the
+      # Dockerfile's cb-build stage from ./camoufox-bin/). Without this it
+      # defaults to ~/.cache/camoufox — same path we baked into, but
+      # makes the contract explicit.
+      CAMOUFOX_INSTALL_DIR: "/home/node/.cache/camoufox"
       # Give YouTube-style SPA sites room to fully render before we time out
       # the navigation. Default in camofox-browser/lib/config.js is 25s; some
       # results pages take 30-45s over the v2raya tunnel.

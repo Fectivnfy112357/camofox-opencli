@@ -59,15 +59,31 @@ RUN npm ci --ignore-scripts \
  && npm run build \
  && npm prune --omit=dev
 
-# Pre-warm Camoufox binary cache so first browser launch isn't a 300MB
-# download. The Docker daemon proxies all container outbound traffic
-# through v2raya (daemon.json: http-proxy=127.0.0.1:20172), so this
-# build-time fetch just hits GitHub directly. cap at 180s; the populated
-# cache is COPY'd into the runtime layer below.
+# Pre-stage the Camoufox Firefox binary into /home/node/.cache/camoufox/
+# (where camoufox-js expects to find it). Downloaded once on the build
+# host via `gh release download` (authenticated, no IP-share rate limits),
+# then COPY'd into the cb-build stage here. This avoids re-downloading on
+# every build and avoids the v2raya exit IP getting throttled by GitHub.
+#
+# camoufox-js writes a version.json sidecar with the schema
+#   { version: "<firefox-version>", release: "<release-tag>" }
+# which its installer normally does; we materialize it explicitly below.
+ARG CAMOUFOX_RELEASE_TAG=v152.0.4-beta.28
+
+# Bundle the pre-downloaded zip + a small metadata file in the build
+# context. docker-compose.yml should set CAMOUFOX_BIN_DIR (default
+# ./camoufox-bin) to the directory holding the zip.
+COPY camoufox-bin/camoufox-bin.zip /tmp/camoufox.zip
+COPY camoufox-bin/version.json    /tmp/version.json
+
 RUN mkdir -p /home/node/.cache/camoufox \
- && chown -R node:node /home/node/.cache \
- && su node -s /bin/bash -c 'timeout 180s npx --yes camoufox-js fetch || \
-        (echo "camoufox-js fetch skipped in cb-build; runtime will need it via HTTP_PROXY=host.docker.internal:20172" && exit 0)' \
+ && apt-get update && apt-get install -y --no-install-recommends unzip \
+ && chown -R node:node /home/node/.cache /tmp/camoufox.zip /tmp/version.json \
+ && unzip -q /tmp/camoufox.zip -d /home/node/.cache/camoufox \
+ && cp /tmp/version.json /home/node/.cache/camoufox/version.json \
+ && chmod -R 755 /home/node/.cache/camoufox \
+ && rm /tmp/camoufox.zip /tmp/version.json \
+ && apt-get purge -y --auto-remove unzip \
  && chown -R node:node /home/node/.cache
 
 # Trim sources + lockfiles we no longer need at runtime.
