@@ -71,7 +71,7 @@ jobs:
           # Dockerfile via `COPY --from=camofox-browser` / `COPY --from=opencli`.
           # BuildKit treats these names as BuildKit named contexts (NOT
           # Docker images), so they resolve to local directories here.
-          additional_contexts: |
+          build-contexts: |
             camofox-browser=${{ github.workspace }}/camofox-browser
             opencli=${{ github.workspace }}/opencli
           push: ${{ github.event_name != 'pull_request' }}
