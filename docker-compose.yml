@@ -9,8 +9,11 @@ services:
       # We inject them as named build contexts so the Dockerfile can `COPY
       # --from=camofox-browser` etc. without any git-submodule wiring.
       additional_contexts:
-        camofox-browser: ${CAMOFOX_BROWSER_DIR:-../camofox-browser}
-        opencli:         ${OPENCLI_DIR:-../opencli}
+        # Sibling source trees live next to this compose file on the host.
+        # Override via CAMOFOX_BROWSER_DIR / OPENCLI_DIR env vars when the
+        # siblings happen to live elsewhere.
+        camofox-browser: ${CAMOFOX_BROWSER_DIR:-./camofox-browser}
+        opencli:         ${OPENCLI_DIR:-./opencli}
     container_name: camofox
     restart: unless-stopped
 
