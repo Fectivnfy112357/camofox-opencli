@@ -67,6 +67,13 @@ jobs:
         with:
           context: .
           file: Dockerfile.publish
+          # The sibling sources cloned above are referenced by the
+          # Dockerfile via `COPY --from=camofox-browser` / `COPY --from=opencli`.
+          # BuildKit treats these names as BuildKit named contexts (NOT
+          # Docker images), so they resolve to local directories here.
+          additional_contexts: |
+            camofox-browser=${{ github.workspace }}/camofox-browser
+            opencli=${{ github.workspace }}/opencli
           push: ${{ github.event_name != 'pull_request' }}
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.VERSION }}
