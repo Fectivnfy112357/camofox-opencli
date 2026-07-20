@@ -137,11 +137,21 @@ RUN cd /build/gateway && npm ci --ignore-scripts && npm run build
 
 FROM node:22-slim AS runtime
 
-# Common runtime dependencies (xvfb, x11vnc, noVNC). camofox-binary deps
-# come along via the camofox-browser layer, which already ran apt-get.
+# Common runtime dependencies. xvfb / x11vnc / noVNC for the VNC layer;
+# the GTK / X11 / font stack are required by Camoufox's Firefox binary at
+# launch (XPCOMGlueLoad libmozgtk.so, etc.) and were lost when we split
+# build vs. runtime stages — they must be reinstalled here, not just in
+# the cb-build stage.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         xvfb x11vnc python3-websockify curl ca-certificates \
         supervisor git \
+        libgtk-3-0 libdbus-glib-1-2 libxt6 libx11-xcb1 \
+        libasound2 libdrm2 libgbm1 libxcomposite1 libxcursor1 \
+        libxdamage1 libxfixes3 libxi6 libxrandr2 libxrender1 \
+        libxss1 libxtst6 libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 \
+        libcups2 libpango-1.0-0 libpangocairo-1.0-0 libxkbcommon0 \
+        libxshmfence1 fonts-freefont-ttf fonts-liberation \
+        fonts-noto fonts-noto-color-emoji fontconfig \
     && rm -rf /var/lib/apt/lists/*
 
 # noVNC static client (re-installed here so the runtime layer is self-
