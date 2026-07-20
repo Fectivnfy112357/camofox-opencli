@@ -3,18 +3,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      # Named build context. The Camoufox binary bundle is injected from the
-      # host cache at deploy time (see deploy.sh) so the Dockerfile can
-      # `COPY --from=camoufox ...` without running `camoufox-js fetch` over
-      # the network (which is unreliable in build-time containers).
+      # Two sibling source trees live next to this compose file on the host:
+      #   ../camofox-browser   (the camofox-browser fork)
+      #   ../opencli           (the OpenCLI fork)
+      # We inject them as named build contexts so the Dockerfile can `COPY
+      # --from=camofox-browser` etc. without any git-submodule wiring.
       additional_contexts:
-        camoufox: ${CAMOFOX_CACHE_DIR:-/dev/null}
-        # Runtime-only assets camoufox-js would otherwise download at first
-        # browser launch: ublock-origin xpi (extracted) + GeoLite2-City.mmdb.
-        # Provided from /opt/camoufox-runtime/ by deploy.sh. When the dir is
-        # absent, the build still succeeds — the camoufox named context above
-        # is the only hard requirement.
-        runtime-addons: ${RUNTIME_ADDONS_DIR:-/dev/null}
+        camofox-browser: ${CAMOFOX_BROWSER_DIR:-../camofox-browser}
+        opencli:         ${OPENCLI_DIR:-../opencli}
     container_name: camofox
     restart: unless-stopped
 
@@ -74,9 +70,13 @@ services:
     security_opt:
       - seccomp=unconfined
     volumes:
-      - camofox_data:/home/node/.camofox
-      # Gateway logs surfaced to the host for out-of-container inspection.
-      # Override with GATEWAY_LOG_HOST_DIR in .env (default ./logs/gateway).
+      # Browser profiles / cookies / downloads / VNC tokens live under
+      # /home/node/.camofox inside the container. Bind the host's
+      # ./data directory to the same path so a `docker compose build
+      # && up -d` preserves login state across rebuilds.
+      - ./data:/home/node/.camofox
+      # Gateway JSONL logs + supervisor stderr/stdout for out-of-container
+      # inspection. Override with GATEWAY_LOG_HOST_DIR in .env.
       - "${GATEWAY_LOG_HOST_DIR:-./logs/gateway}:/var/log/gateway"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:9377/health"]
@@ -84,5 +84,3 @@ services:
       timeout: 5s
       retries: 3
 
-volumes:
-  camofox_data:
