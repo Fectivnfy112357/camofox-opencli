@@ -33,7 +33,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libcups2 libpango-1.0-0 libpangocairo-1.0-0 libxkbcommon0 \
         libxshmfence1 fonts-freefont-ttf fonts-liberation \
         fonts-noto fonts-noto-color-emoji fontconfig \
-        ca-certificates curl \
+        ca-certificates curl git \
     && rm -rf /var/lib/apt/lists/*
 
 # noVNC static web client for the VNC HTML page on :6080.
