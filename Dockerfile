@@ -200,6 +200,14 @@ WORKDIR /opt/camofox
 RUN mkdir -p /home/node/.camofox/profiles /home/node/.camofox/downloads /var/log/gateway \
  && chown -R node:node /home/node/.camofox /var/log/gateway
 
+# Expose the opencli CLI on PATH so `opencli <site> <command>` works
+# from a `docker exec` shell and matches what the gateway spawns.
+# `/opt/opencli/dist/src/main.js` already has `#!/usr/bin/env node`
+# + mode 0755 (set by opencli's prebuild-manifest hook), so a symlink
+# is enough — no wrapper script, no `npm link` (which would mutate
+# node_modules across layers).
+RUN ln -sf /opt/opencli/dist/src/main.js /usr/local/bin/opencli
+
 # Supervisord config — defines the four processes (camofox, opencli-
 # daemon, shim, gateway). Volumes & env wiring lives in docker-compose.
 COPY supervisord.conf /etc/supervisor/conf.d/camofox-opencli.conf
