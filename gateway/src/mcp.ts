@@ -2,7 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { Deps } from './rest.js';
 import type { Manifest } from './manifest.js';
-import { buildArgs, buildRawArgs, PASSTHROUGH_SITES, type RunResult } from './opencli.js';
+import { buildArgs, PASSTHROUGH_SITES, type RunResult } from './opencli.js';
 import { log } from './logger.js';
 import * as searchCache from './search-cache.js';
 
@@ -124,23 +124,15 @@ async function runCmd(
 ): Promise<ToolResult> {
   const t0 = Date.now();
   log.info('mcp.run.start', { site, command, args });
-  let argv: string[];
-  let passthrough = false;
+  // Browser primitives are intentionally not exposed over MCP — the gateway
+  // only drives the 173+ site content adapters. Reject any attempt to reach
+  // the passthrough browser via run_command.
   if (PASSTHROUGH_SITES.has(site)) {
-    // For browser: argv layout depends on whether the caller passed a session.
-    //   with session: [session, command, ...rest-positionals, --flags]
-    //   without session: [command, ...positionals, --flags]
-    // `command` (the opencli subcommand, e.g. "open"/"click"/"state") is
-    // spliced in as the second positional after session, or as the first
-    // positional when no session — so the CLI sees:
-    //   opencli browser <session> <command> <rest-positionals> --flags
-    const { positionals, flags, hasSession } = buildRawArgs(args);
-    const head = hasSession
-      ? [positionals[0], command, ...positionals.slice(1)]
-      : [command, ...positionals];
-    argv = [...head, ...flags];
-    passthrough = true;
-  } else {
+    return textErr(`site not available over MCP: ${site}`);
+  }
+  let argv: string[];
+  const passthrough = false;
+  {
     const record = deps.manifest.findCommand(site, command);
     if (!record) return textErr(`unknown command: ${site} ${command}`);
     // Self-heal UX: `<site> login` blocks until cookies appear or its timeout
@@ -220,71 +212,6 @@ export function createMcpServer(deps: Deps, ctx: ServerCtx = { clientHost: null 
       },
     },
     async ({ site, query, limit, extras }) => handleSearch(deps, site, query, limit, extras ?? {}, ctx.clientHost));
-
-  server.registerTool('browser',
-    {
-      description:
-        'Run an opencli browser primitive (navigate/click/type/snapshot/screenshot/get/...).\n' +
-        'opencli browser <session> <command> [options] — session is a required positional, ' +
-        'positional[] becomes subsequent CLI positionals (url/ref/key), args holds --flags.',
-      inputSchema: {
-        action: z.string().describe('Subcommand name, e.g. open / click / type / state / screenshot'),
-        session: z.string().describe('Browser session name (required positional — pass the same name across calls to keep state alive)'),
-        positional: z.union([
-          z.array(z.union([z.string(), z.number()])),
-          z.record(z.string(), z.unknown()),
-          z.null(),
-          // Claude Code MCP client serialises array fields as a single string
-          // (e.g. `"['https://kimi.com/pricing']"` or `"https://kimi.com/pricing"`).
-          // Accept bare strings here so the URL survives transit; handler splits
-          // JSON-array strings below.
-          z.string(),
-        ]).optional()
-          .describe('Additional CLI positionals after <command>, in order (e.g. [url] for open, [ref] for click, [key] for keys). Accepts an array (string|number), a record, a bare string, or null — some clients send null/empty/string when no positional is needed.'),
-        args: z.record(z.string(), z.unknown()).optional().describe('Optional CLI flags as {key: value}; boolean true becomes bare --key'),
-      },
-    },
-    async ({ action, session, positional, args }) => {
-      // Normalize positional: may arrive as a (string|number)[] OR as a record
-      // {0:..., 1:...} depending on the MCP client serialisation. Sort by
-      // numeric key so [0,1,2] ordering survives. Stringify numbers since
-      // CLI argv is always string.
-      const posArr: string[] = Array.isArray(positional)
-        ? positional.map((v) => String(v))
-        : positional && typeof positional === 'object'
-        ? Object.keys(positional)
-            .sort((a, b) => Number(a) - Number(b))
-            .map((k) => String((positional as Record<string, unknown>)[k]))
-        : typeof positional === 'string' && positional
-        ? // Claude Code MCP client serialises array fields as a JSON-string
-          // (e.g. `"['https://kimi.com/pricing']"`) or as a plain string when
-          // the array had one element. Try JSON.parse first; fall back to
-          // wrapping the bare string as a single positional.
-          (() => {
-            try {
-              const parsed = JSON.parse(positional);
-              if (Array.isArray(parsed)) return parsed.map((v) => String(v));
-              if (typeof parsed === 'string') return [parsed];
-              return [positional];
-            } catch {
-              return [positional];
-            }
-          })()
-        : [];
-      // Some MCP clients (e.g. Claude Code) coerce array-typed schema fields
-      // into a single string under `args.<fieldName>` rather than the top-
-      // level array positional. Hoist any `args.positional` (string|string[])
-      // into the positionals list so end-users don't have to fight the UI.
-      const argsObj = { ...(args ?? {}) };
-      if (argsObj.positional !== undefined) {
-        const v = argsObj.positional;
-        if (Array.isArray(v)) for (const p of v) posArr.push(String(p));
-        else if (typeof v === 'string' && v) posArr.push(v);
-        delete argsObj.positional;
-      }
-      const composed: Record<string, unknown> = { session, _: posArr, ...argsObj };
-      return runCmd(deps, 'browser', action, composed, ctx.clientHost);
-    });
 
   server.registerTool('login',
     { description: 'Get a noVNC link to log into a site manually', inputSchema: { url: z.string().optional() } },

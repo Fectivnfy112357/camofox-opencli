@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { PRIMARY_SITES, buildSiteToolDescription, createMcpServer } from './mcp.js';
 import { loadManifest } from './manifest.js';
-import { buildRawArgs, PASSTHROUGH_SITES, type RunResult } from './opencli.js';
+import { type RunResult } from './opencli.js';
 import * as searchCache from './search-cache.js';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -24,68 +24,9 @@ describe('mcp helpers', () => {
   });
 });
 
-describe('browser tool argv', () => {
-  it('browser is a passthrough site', () => {
-    expect(PASSTHROUGH_SITES.has('browser')).toBe(true);
-  });
-
-  it('browser open with session + url marks hasSession=true', () => {
-    const r = buildRawArgs({ session: 'work', _: ['https://x.com'] });
-    expect(r.positionals).toEqual(['work', 'https://x.com']);
-    expect(r.hasSession).toBe(true);
-  });
-
-  it('browser state with only session marks hasSession=true', () => {
-    const r = buildRawArgs({ session: 'work' });
-    expect(r.positionals).toEqual(['work']);
-    expect(r.hasSession).toBe(true);
-  });
-
-  it('browser navigate with positional but no session has hasSession=false', () => {
-    const r = buildRawArgs({ _: ['http://x'] });
-    expect(r.positionals).toEqual(['http://x']);
-    expect(r.hasSession).toBe(false);
-  });
-});
-
-// End-to-end MCP handler test: register the `browser` tool against a real
-// McpServer, invoke its registered handler with the same payload shape an MCP
-// client would send, and capture the argv passed to `run`. This proves the
-// MCP layer translates {action, session, positional, args} into the right
-// CLI argv — not the broken legacy shape of dumping args as flags.
-describe('MCP browser tool handler', () => {
-  it('browser open: action=open + session=work + positional=[url] spawns argv=[session,open,url]', async () => {
-    const run = vi.fn(async (_site: string, _cmd: string, argv: string[]): Promise<RunResult> => {
-      return { ok: true, data: { argv } };
-    });
-    const server = createMcpServer({ cfg: {} as any, manifest, run, vnc: async () => '' });
-    // The MCP SDK exposes registered tools via `server._registeredTools` (private but stable).
-    const tools = (server as any)._registeredTools as Record<string, { handler: (input: any) => Promise<any> }>;
-    const browserTool = tools.browser;
-    expect(browserTool).toBeDefined();
-    const result = await browserTool.handler({
-      action: 'open',
-      session: 'work',
-      positional: ['https://x.com'],
-    });
-    expect(run).toHaveBeenCalledWith('browser', 'open', ['work', 'open', 'https://x.com'], { passthrough: true });
-    expect(JSON.parse(result.content[0].text).argv).toEqual(['work', 'open', 'https://x.com']);
-  });
-
-  it('browser click: action=click + session=work + positional=[ref] spawns argv=[session,click,ref]', async () => {
-    const run = vi.fn(async (_site: string, _cmd: string, argv: string[]): Promise<RunResult> => {
-      return { ok: true, data: { argv } };
-    });
-    const server = createMcpServer({ cfg: {} as any, manifest, run, vnc: async () => '' });
-    const tools = (server as any)._registeredTools as Record<string, { handler: (input: any) => Promise<any> }>;
-    await tools.browser.handler({
-      action: 'click',
-      session: 'work',
-      positional: ['12'],
-    });
-    expect(run).toHaveBeenCalledWith('browser', 'click', ['work', 'click', '12'], { passthrough: true });
-  });
-
+// MCP handler tests: register tools against a real McpServer and invoke the
+// registered handler with the payload shape an MCP client would send.
+describe('MCP run_command tool handler', () => {
   it('run_command: <site> login injects default --timeout 30 (UX: avoid 5min lock)', async () => {
     const fakeManifest = {
       findCommand: (_site: string, _cmd: string) => ({
@@ -122,108 +63,6 @@ describe('MCP browser tool handler', () => {
     const tools = (server as any)._registeredTools as Record<string, { handler: (input: any) => Promise<any> }>;
     await tools.run_command.handler({ site: 'kimi', command: 'login', args: { timeout: 90 } });
     expect(run).toHaveBeenCalledWith('kimi', 'login', ['--timeout', '90', '--format', 'json'], { passthrough: false });
-  });
-
-  it('browser state: action=state + session=work + positional=[] spawns argv=[session,state]', async () => {
-    const run = vi.fn(async (_site: string, _cmd: string, argv: string[]): Promise<RunResult> => {
-      return { ok: true, data: { argv } };
-    });
-    const server = createMcpServer({ cfg: {} as any, manifest, run, vnc: async () => '' });
-    const tools = (server as any)._registeredTools as Record<string, { handler: (input: any) => Promise<any> }>;
-    await tools.browser.handler({
-      action: 'state',
-      session: 'work',
-      positional: [],
-    });
-    expect(run).toHaveBeenCalledWith('browser', 'state', ['work', 'state'], { passthrough: true });
-  });
-
-  it('browser open: positional arrives as record {0:...,1:...} (MCP client quirk) — sorted by key', async () => {
-    const run = vi.fn(async (_site: string, _cmd: string, argv: string[]): Promise<RunResult> => {
-      return { ok: true, data: { argv } };
-    });
-    const server = createMcpServer({ cfg: {} as any, manifest, run, vnc: async () => '' });
-    const tools = (server as any)._registeredTools as Record<string, { handler: (input: any) => Promise<any> }>;
-    await tools.browser.handler({
-      action: 'open',
-      session: 'work',
-      // some MCP clients serialise arrays as {0:"a",1:"b"} objects
-      positional: { 0: 'https://x.com' },
-    });
-    expect(run).toHaveBeenCalledWith('browser', 'open', ['work', 'open', 'https://x.com'], { passthrough: true });
-  });
-
-  it('browser open: bare string positional accepted; single URL forwarded as a single positional', async () => {
-    // WHY THIS TEST EXISTS: the report C:\Users\32115\camfox-opencli-test-report.md
-    // §3.6.2 saw "expected array, received string" — Claude Code MCP client
-    // serialises array fields as a bare string when there's one element. The
-    // schema (mcp.ts:126) now accepts z.string() and the handler (mcp.ts:151)
-    // forwards it as a single positional so `opencli browser <sess> open <url>`
-    // is correctly assembled.
-    const run = vi.fn(async (_site: string, _cmd: string, argv: string[]): Promise<RunResult> => {
-      return { ok: true, data: { argv } };
-    });
-    const server = createMcpServer({ cfg: {} as any, manifest, run, vnc: async () => '' });
-    const tools = (server as any)._registeredTools as Record<string, { handler: (input: any) => Promise<any> }>;
-    await tools.browser.handler({
-      action: 'open',
-      session: 'work',
-      positional: 'https://kimi.com/pricing', // single-URL string, not an array
-    });
-    expect(run).toHaveBeenCalledWith('browser', 'open', ['work', 'open', 'https://kimi.com/pricing'], { passthrough: true });
-  });
-
-  it('browser open: JSON-array string positional (multi-element client quirk) parses into multiple positionals', async () => {
-    // WHY THIS TEST EXISTS: same client quirk as above, but for >1 element
-    // where Claude Code stringifies the array. e.g. `["https://a", "https://b"]`
-    // arrives as the string `"[\"https://a\",\"https://b\"]"`.
-    const run = vi.fn(async (_site: string, _cmd: string, argv: string[]): Promise<RunResult> => {
-      return { ok: true, data: { argv } };
-    });
-    const server = createMcpServer({ cfg: {} as any, manifest, run, vnc: async () => '' });
-    const tools = (server as any)._registeredTools as Record<string, { handler: (input: any) => Promise<any> }>;
-    await tools.browser.handler({
-      action: 'open',
-      session: 'work',
-      positional: JSON.stringify(['https://a.example', 'https://b.example']),
-    });
-    expect(run).toHaveBeenCalledWith(
-      'browser',
-      'open',
-      ['work', 'open', 'https://a.example', 'https://b.example'],
-      { passthrough: true }
-    );
-  });
-
-  it('browser open: Claude Code quirk — positional value lands in args.positional as string/array, hoisted into argv positionals', async () => {
-    const run = vi.fn(async (_site: string, _cmd: string, argv: string[]): Promise<RunResult> => {
-      return { ok: true, data: { argv } };
-    });
-    const server = createMcpServer({ cfg: {} as any, manifest, run, vnc: async () => '' });
-    const tools = (server as any)._registeredTools as Record<string, { handler: (input: any) => Promise<any> }>;
-    // MCP clients (e.g. Claude Code) cannot populate top-level array fields
-    // via the tool UI and end up stuffing the value into `args.<fieldname>`
-    // which would otherwise become a literal `--positional` flag.
-    await tools.browser.handler({
-      action: 'open',
-      session: 'work',
-      args: { positional: 'https://x.com' },
-    });
-    expect(run).toHaveBeenCalledWith('browser', 'open', ['work', 'open', 'https://x.com'], { passthrough: true });
-  });
-
-  it('browser click: positional accepts numeric refs (stringified)', async () => {
-    const run = vi.fn(async (_site: string, _cmd: string, argv: string[]): Promise<RunResult> => {
-      return { ok: true, data: { argv } };
-    });
-    const server = createMcpServer({ cfg: {} as any, manifest, run, vnc: async () => '' });
-    const tools = (server as any)._registeredTools as Record<string, { handler: (input: any) => Promise<any> }>;
-    await tools.browser.handler({
-      action: 'click',
-      session: 'work',
-      positional: [12], // numeric ref — CLI wants string
-    });
-    expect(run).toHaveBeenCalledWith('browser', 'click', ['work', 'click', '12'], { passthrough: true });
   });
 });
 

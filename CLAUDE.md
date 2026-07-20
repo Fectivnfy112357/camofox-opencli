@@ -52,7 +52,7 @@ external agent ── REST/MCP ───────┘ (gateway :8080)
 
 ### Gateway (`gateway/src/`)
 - `index.ts` — HTTP server. `/mcp` creates a **fresh `McpServer` + `StreamableHTTPServerTransport` per request** (stateless mode). Previously reused a single transport across concurrent requests, causing JSON-RPC stream interleaving and intermittent failures that tripped Claude Code's MCP circuit breaker (3 consecutive failures → ~37-60s cooldown).
-- `mcp.ts` — 16 tools: `list_sites`, `site_help`, `run_command`, `browser`, `login`, `doctor`, plus 10 primary site commands (`PRIMARY_SITES`). Host from inbound `Host` / `X-Forwarded-Host` is passed via per-request `ctx` (no global mutable host).
+- `mcp.ts` — site-content tools only (`list_sites`, `site_help`, `run_command`, `search`, `login`, `doctor`, plus 10 primary site commands in `PRIMARY_SITES`). Browser primitives are NOT exposed over MCP; `run_command` rejects any `PASSTHROUGH_SITES` target (e.g. `browser`). Host from inbound `Host` / `X-Forwarded-Host` is passed via per-request `ctx` (no global mutable host).
 - `logger.ts` — Structured JSONL logger to `GATEWAY_LOG_DIR/gateway.log` (default `/var/log/gateway`) + stdout mirror. Write failures degrade silently to stdout-only.
 - `opencli.ts` — `runOpencli()` spawns `opencli <site> <command> --format json`; `parseResult()` handles strict JSON / YAML envelope / stderr-JSON fallback.
 - `rest.ts` — REST routes (`/health`, `/sites`, `/sites/:site/help`, `/run`, `/login`) with `GATEWAY_API_KEY` Bearer auth.
