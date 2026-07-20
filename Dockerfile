@@ -37,8 +37,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # noVNC static web client for the VNC HTML page on :6080.
-RUN git clone --depth 1 https://github.com/novnc/noVNC.git /opt/noVNC \
- && rm -rf /opt/noVNC/.git
+# Use git clone first, fall back to the GitHub tarball if the build host
+# blocks git-over-HTTPS (common in Docker China base images).
+RUN set -e; \
+    if git clone --depth 1 https://github.com/novnc/noVNC.git /opt/noVNC 2>/dev/null; then \
+        rm -rf /opt/noVNC/.git; \
+    else \
+        echo "git clone failed, falling back to codeload tarball"; \
+        curl -fsSL https://codeload.github.com/novnc/noVNC/tar.gz/refs/heads/master -o /tmp/novnc.tgz \
+        && mkdir -p /opt/noVNC \
+        && tar -xzf /tmp/novnc.tgz -C /opt/noVNC --strip-components=1 \
+        && rm /tmp/novnc.tgz; \
+    fi
 
 WORKDIR /build
 # Copy context — the compose `additional_contexts.cb` resolves to the
