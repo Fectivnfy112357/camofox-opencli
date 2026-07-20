@@ -99,7 +99,8 @@ FROM node:22-slim AS runtime
 # Common runtime dependencies (xvfb, x11vnc, noVNC). camofox-binary deps
 # come along via the camofox-browser layer, which already ran apt-get.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        xvfb x11vnc python3-websockify curl ca-certificates supervisor \
+        xvfb x11vnc python3-websockify curl ca-certificates \
+        supervisor git \
     && rm -rf /var/lib/apt/lists/*
 
 # noVNC static client (re-installed here so the runtime layer is self-
