@@ -60,12 +60,15 @@ RUN npm ci --ignore-scripts \
  && npm prune --omit=dev
 
 # Pre-warm Camoufox binary cache so first browser launch isn't a 300MB
-# download. `camoufox-js fetch` may hang on networks that block the
-# release CDN; wrap with `timeout --kill-after=10s 90s` and tolerate any
-# failure: the runtime container will retry via HTTPS_PROXY through
-# host.docker.internal (camofox itself fetches on first launch).
-RUN timeout --kill-after=10s 90s npx --yes camoufox-js fetch || \
-    echo "camoufox-js fetch skipped (timeout/error) — runtime will retry"
+# download. The Docker daemon proxies all container outbound traffic
+# through v2raya (daemon.json: http-proxy=127.0.0.1:20172), so this
+# build-time fetch just hits GitHub directly. cap at 180s; the populated
+# cache is COPY'd into the runtime layer below.
+RUN mkdir -p /home/node/.cache/camoufox \
+ && chown -R node:node /home/node/.cache \
+ && su node -s /bin/bash -c 'timeout 180s npx --yes camoufox-js fetch || \
+        (echo "camoufox-js fetch skipped in cb-build; runtime will need it via HTTP_PROXY=host.docker.internal:20172" && exit 0)' \
+ && chown -R node:node /home/node/.cache
 
 # Trim sources + lockfiles we no longer need at runtime.
 RUN rm -rf node_modules/.cache src tsconfig.json package-lock.json
@@ -135,6 +138,7 @@ RUN curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/download/${YT_DLP_VERS
 
 # Layer in the three pre-built artifacts.
 COPY --from=cb-build /build/        /opt/camofox/
+COPY --from=cb-build /home/node/.cache/camoufox/ /home/node/.cache/camoufox/
 COPY --from=oc-build /build/        /opt/opencli/
 COPY --from=sg-build /build/shim/dist/      /opt/shim/dist/
 COPY --from=sg-build /build/shim/package.json /opt/shim/
