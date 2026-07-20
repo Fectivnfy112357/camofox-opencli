@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1.6
-#
 # camofox-opencli aggregate image.
 #
 # Layers three sibling sources (all living under
