@@ -20,7 +20,7 @@
 # survives image rebuilds.
 
 # ───────────────────────── Stage 1: camofox-browser ─────────────────────────
-FROM node:22-slim AS camofox-browser
+FROM node:22-slim AS cb-build
 
 # System deps Camoufox (Firefox) needs at runtime — kept identical to the
 # upstream camofox-browser fork so the binary works unchanged.
@@ -61,7 +61,7 @@ RUN npx --yes camoufox-js fetch || true
 RUN rm -rf node_modules/.cache src tsconfig.json package-lock.json
 
 # ───────────────────────── Stage 2: opencli (daemon) ─────────────────────────
-FROM node:22-slim AS opencli
+FROM node:22-slim AS oc-build
 
 WORKDIR /build
 COPY --from=opencli . /build
@@ -77,7 +77,7 @@ RUN rm -rf node_modules/.cache src tsconfig.json package-lock.json \
         bun.lock docs README.md CHANGELOG.md
 
 # ───────────────────────── Stage 3: shim + gateway ─────────────────────────
-FROM node:22-slim AS shim-gateway
+FROM node:22-slim AS sg-build
 
 WORKDIR /build/shim
 COPY src/ /build/shim/src/
@@ -94,7 +94,6 @@ COPY gateway/src/ /build/gateway/src/
 # gateway build itself only needs its own sources + sdk.
 RUN cd /build/gateway && npm ci --ignore-scripts && npm run build
 
-# ───────────────────────── Stage 4: runtime ─────────────────────────
 FROM node:22-slim AS runtime
 
 # Common runtime dependencies (xvfb, x11vnc, noVNC). camofox-binary deps
@@ -115,12 +114,12 @@ RUN curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/download/${YT_DLP_VERS
  && chmod +x /usr/local/bin/yt-dlp
 
 # Layer in the three pre-built artifacts.
-COPY --from=camofox-browser /build/ /opt/camofox/
-COPY --from=opencli        /build/ /opt/opencli/
-COPY --from=shim-gateway   /build/shim/dist/      /opt/shim/dist/
-COPY --from=shim-gateway   /build/shim/package.json /opt/shim/
-COPY --from=shim-gateway   /build/gateway/dist/   /opt/gateway/dist/
-COPY --from=shim-gateway   /build/gateway/package.json /opt/gateway/
+COPY --from=cb-build /build/        /opt/camofox/
+COPY --from=oc-build /build/        /opt/opencli/
+COPY --from=sg-build /build/shim/dist/      /opt/shim/dist/
+COPY --from=sg-build /build/shim/package.json /opt/shim/
+COPY --from=sg-build /build/gateway/dist/   /opt/gateway/dist/
+COPY --from=sg-build /build/gateway/package.json /opt/gateway/
 
 # Install production node_modules for shim + gateway (the build stage only
 # ran `npm ci` once, including devDeps for tsc — re-install with omit=dev
