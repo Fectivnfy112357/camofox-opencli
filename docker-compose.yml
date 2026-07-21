@@ -83,6 +83,9 @@ services:
       # Gateway JSONL logs + supervisor stderr/stdout for out-of-container
       # inspection. Override with GATEWAY_LOG_HOST_DIR in .env.
       - "${GATEWAY_LOG_HOST_DIR:-./logs/gateway}:/var/log/gateway"
+      # video_download temp files (TTL 1h, swept every 10min). Bind-mount
+      # to ./data/gateway-tmp so host-side cleanup is also possible.
+      - "${GATEWAY_TMP_HOST_DIR:-./data/gateway-tmp}:/opt/gateway/tmp"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:9377/health"]
       interval: 30s
