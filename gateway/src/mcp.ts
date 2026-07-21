@@ -1,10 +1,18 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import type { IncomingMessage } from 'node:http';
+import { exec as execCb } from 'node:child_process';
+import { promisify } from 'node:util';
 import type { Deps } from './rest.js';
 import type { Manifest } from './manifest.js';
 import { buildArgs, PASSTHROUGH_SITES, type RunResult } from './opencli.js';
 import { log } from './logger.js';
 import * as searchCache from './search-cache.js';
+import { searchVideos, type RouterDeps } from './video/video-router.js';
+import { DownloadPool, type RunResultLike } from './video/download-pool.js';
+import { TempStore } from './video/temp-store.js';
+import { buildAbsoluteUrl } from './video/url-builder.js';
+import type { CamofoxCookie } from './video/video-cookies.js';
 
 export const PRIMARY_SITES = [
   'xiaohongshu', 'bilibili', 'twitter', 'reddit', 'zhihu',
@@ -171,9 +179,65 @@ async function runCmd(
  * Per-request client host. The Streamable HTTP transport doesn't pass `req`
  * into tool handlers, so the HTTP layer (index.ts) constructs a fresh server
  * per request and passes the inbound Host here — no shared global state, so
- * concurrent requests can't clobber each other's host.
+ * concurrent requests can't clobber each other's host. `req` is forwarded
+ * for video_download to build absolute download URLs from X-Forwarded-* headers.
  */
-export interface ServerCtx { clientHost: string | null }
+export interface ServerCtx { clientHost: string | null; req?: IncomingMessage }
+
+/** Lazy video subsystem built once per server (deps.tempStore is shared). */
+interface VideoSubsystem {
+  pool: DownloadPool;
+  fetchCookies: (userId: string) => Promise<CamofoxCookie[]>;
+}
+
+let _video: VideoSubsystem | null = null;
+
+function getVideoSubsystem(deps: Deps): VideoSubsystem {
+  if (_video) return _video;
+  const tmpDir = deps.tempStore?.['opts']?.tmpDir ?? process.env.GATEWAY_TMP_DIR ?? './tmp';
+  const execAsync = promisify(execCb) as unknown as (
+    cmd: string, args: string[], opts?: { cwd?: string; timeoutMs?: number },
+  ) => Promise<{ stdout: string; stderr: string }>;
+  const tempStore = deps.tempStore ?? new TempStore({ tmpDir, ttlMs: 60 * 60 * 1000 });
+  const camofoxBase = process.env.CAMOFOX_BASE_URL ?? 'http://127.0.0.1:9377';
+  const camofoxKey = process.env.CAMOFOX_API_KEY ?? '';
+  const userId = process.env.CAMOFOX_USER_ID ?? 'default';
+
+  const fetchCookies = async (uid: string): Promise<CamofoxCookie[]> => {
+    const url = `${camofoxBase}/sessions/${encodeURIComponent(uid)}/cookies`;
+    const headers: Record<string, string> = { 'Accept': 'application/json' };
+    if (camofoxKey) headers['Authorization'] = `Bearer ${camofoxKey}`;
+    const res = await fetch(url, { headers });
+    if (!res.ok) throw new Error(`Camofox cookies HTTP ${res.status}`);
+    return (await res.json()) as CamofoxCookie[];
+  };
+
+  const pool = new DownloadPool({
+    tmpDir,
+    tempStore,
+    workerCount: 3,
+    runOpencli: async (site, command, argv) => {
+      const r = await deps.run(site, command, argv);
+      const ok = !!r.ok;
+      const stdout = ok ? JSON.stringify(r.data ?? {}) : '';
+      const stderr = ok ? '' : (r.stderr ?? JSON.stringify(r.data ?? {}));
+      return { ok, exitCode: ok ? 0 : 1, stdout, stderr };
+    },
+    fetchCamofoxCookies: fetchCookies,
+    exec: async (cmd, args, opts) => {
+      try {
+        const { stdout, stderr } = await execAsync(cmd, args, opts ?? {});
+        return { ok: true, exitCode: 0, stdout, stderr };
+      } catch (err: unknown) {
+        const e = err as { stdout?: string; stderr?: string; code?: number };
+        return { ok: false, exitCode: e.code ?? 1, stdout: e.stdout ?? '', stderr: e.stderr ?? String(err) };
+      }
+    },
+  });
+
+  _video = { pool, fetchCookies };
+  return _video;
+}
 
 export function createMcpServer(deps: Deps, ctx: ServerCtx = { clientHost: null }): McpServer {
   const server = new McpServer({ name: 'opencli-gateway', version: '0.1.0' });
@@ -220,6 +284,68 @@ export function createMcpServer(deps: Deps, ctx: ServerCtx = { clientHost: null 
   server.registerTool('doctor',
     { description: 'Run opencli doctor', inputSchema: {} },
     async () => runCmd(deps, 'doctor', '', {}, ctx.clientHost));
+
+  // video_search: cross-platform search fan-out (3 concurrent sites).
+  // Supported platform values: bilibili, youtube, douyin, tiktok, instagram,
+  // xiaohongshu, weibo, twitter, "all" (all 8), or omit (default 3).
+  const video = getVideoSubsystem(deps);
+  server.registerTool('video_search',
+    {
+      description: 'Search videos across supported platforms. Default platforms (when platform is omitted): bilibili, youtube, douyin. Pass platform="all" to search all 8 supported sites (bilibili, youtube, douyin, tiktok, instagram, xiaohongshu, weibo, twitter). Up to 3 sites are queried in parallel; per-site failures are returned in stats.failed without aborting the whole request.',
+      inputSchema: {
+        query: z.string().min(1).describe('Search keywords (non-empty)'),
+        platform: z.string().optional().describe('Site name (bilibili|youtube|douyin|tiktok|instagram|xiaohongshu|weibo|twitter), "all", or omit for the default 3 sites'),
+        limit: z.number().int().min(1).max(30).optional().describe('Results per site (default 10)'),
+      },
+    },
+    async ({ query, platform, limit }) => {
+      try {
+        const routerDeps: RouterDeps = {
+          runOpencli: async (site, command, argv) => {
+            const r = await deps.run(site, command, argv);
+            const ok = !!r.ok;
+            return {
+              ok,
+              exitCode: ok ? 0 : 1,
+              stdout: ok ? JSON.stringify(r.data ?? {}) : '',
+              stderr: ok ? '' : (r.stderr ?? JSON.stringify(r.data ?? {})),
+            };
+          },
+        };
+        const res = await searchVideos({ query, platform, limit }, routerDeps);
+        return { content: [{ type: 'text', text: JSON.stringify(res) }] };
+      } catch (err) {
+        const code = (err as { code?: string })?.code ?? 'EMPTY_QUERY';
+        return { isError: true, content: [{ type: 'text', text: JSON.stringify({ ok: false, error: { code, message: (err as Error).message } }) }] };
+      }
+    },
+  );
+
+  // video_download: download 1-3 URLs to a temp file inside the container.
+  // Returns a temporary HTTPS URL the client can GET to fetch the bytes
+  // (1-hour TTL, see GET /files/:id route). Bilibili and Instagram route
+  // through opencli's native download; every other platform falls back to
+  // yt-dlp with Camofox cookies injected.
+  server.registerTool('video_download',
+    {
+      description: 'Download 1-3 video URLs to a temp file inside the container. Returns a temporary HTTPS URL the client can GET to fetch the bytes. Files are deleted after 1 hour. Bilibili and Instagram use OpenCLI native download; all other platforms use yt-dlp with Camofox cookies injected automatically.',
+      inputSchema: {
+        urls: z.array(z.string().url()).min(1).max(3).describe('1-3 video URLs to download in parallel'),
+        quality: z.enum(['best', '1080p', '720p', '480p', 'worst']).optional().describe('Video quality (default best)'),
+      },
+    },
+    async ({ urls, quality }) => {
+      const q = quality ?? 'best';
+      const results = await video.pool.downloadMany(urls, q);
+      const req: IncomingMessage = ctx.req ?? ({ headers: {} } as IncomingMessage);
+      const patched = results.map((r, i) => {
+        if (!r.ok) return r;
+        const abs = buildAbsoluteUrl(req, r.download_url);
+        return { ...r, url: urls[i], download_url: abs ?? r.download_url };
+      });
+      return { content: [{ type: 'text', text: JSON.stringify({ results: patched }) }] };
+    },
+  );
 
   for (const site of PRIMARY_SITES) {
     server.registerTool(`${site}_command`,

@@ -144,7 +144,7 @@ FROM node:22-slim AS runtime
 # the cb-build stage.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         xvfb x11vnc python3-websockify curl ca-certificates \
-        supervisor git \
+        supervisor git yt-dlp python3-pip \
         libgtk-3-0 libdbus-glib-1-2 libxt6 libx11-xcb1 \
         libasound2 libdrm2 libgbm1 libxcomposite1 libxcursor1 \
         libxdamage1 libxfixes3 libxi6 libxrandr2 libxrender1 \
@@ -153,6 +153,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libxshmfence1 fonts-freefont-ttf fonts-liberation \
         fonts-noto fonts-noto-color-emoji fontconfig \
     && rm -rf /var/lib/apt/lists/*
+
+# Some upstream yt-dlp packages lag behind YouTube's JS challenges; if the
+# apt-installed version is older than 2026.x, pip-install the latest. Skipped
+# silently on networks without internet.
+RUN yt-dlp --version || true \
+    && pip3 install --break-system-packages --no-cache-dir -U "yt-dlp>=2026.7.0" 2>/dev/null || true \
+    && yt-dlp --version || true
 
 # noVNC static client (re-installed here so the runtime layer is self-
 # contained even if Stage 1 changed in the future). Same tarball fallback
@@ -197,8 +204,8 @@ WORKDIR /opt/camofox
 
 # Persistent data paths — bind-mount the host's ./data directory here so
 # browser profiles, cookies, downloads, and VNC tokens survive rebuilds.
-RUN mkdir -p /home/node/.camofox/profiles /home/node/.camofox/downloads /var/log/gateway \
- && chown -R node:node /home/node/.camofox /var/log/gateway
+RUN mkdir -p /home/node/.camofox/profiles /home/node/.camofox/downloads /var/log/gateway /opt/gateway/tmp \
+ && chown -R node:node /home/node/.camofox /var/log/gateway /opt/gateway
 
 # Expose the opencli CLI on PATH so `opencli <site> <command>` works
 # from a `docker exec` shell and matches what the gateway spawns.
