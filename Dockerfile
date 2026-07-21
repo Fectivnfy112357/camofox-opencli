@@ -20,6 +20,16 @@
 # ───────────────────────── Stage 1: camofox-browser ─────────────────────────
 FROM node:22-slim AS cb-build
 
+# Pin Debian apt sources to cdn-fastly.deb.debian.org (Fastly CDN cache hit,
+# observed < 100ms on the build host). node:22-slim's default
+# /etc/apt/sources.list.d/debian.sources uses deb.debian.org, whose SRV-based
+# mirror selection can resolve to slow / rate-limited CDN edges from inside
+# Docker, causing `apt-get update` to hang for 10+ minutes. By overriding the
+# sources file we eliminate DNS SRV lookup entirely.
+RUN set -e \
+ && rm -f /etc/apt/sources.list.d/debian.sources \
+ && printf 'Types: deb\nURIs: http://cdn-fastly.deb.debian.org/debian\nSuites: bookworm bookworm-updates\nComponents: main\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg\n\nTypes: deb\nURIs: http://cdn-fastly.deb.debian.org/debian-security\nSuites: bookworm-security\nComponents: main\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg\n' > /etc/apt/sources.list.d/debian.sources
+
 # System deps Camoufox (Firefox) needs at runtime — kept identical to the
 # upstream camofox-browser fork so the binary works unchanged. build-essential
 # + python3 are present so npm postinstall can compile better-sqlite3's native
@@ -136,6 +146,12 @@ COPY gateway/src/ /build/gateway/src/
 RUN cd /build/gateway && npm ci --ignore-scripts && npm run build
 
 FROM node:22-slim AS runtime
+
+# Pin Debian apt sources to cdn-fastly.deb.debian.org (see cb-build comment
+# above for why — avoids the same DNS-SRV-induced apt-get hang).
+RUN set -e \
+ && rm -f /etc/apt/sources.list.d/debian.sources \
+ && printf 'Types: deb\nURIs: http://cdn-fastly.deb.debian.org/debian\nSuites: bookworm bookworm-updates\nComponents: main\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg\n\nTypes: deb\nURIs: http://cdn-fastly.deb.debian.org/debian-security\nSuites: bookworm-security\nComponents: main\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg\n' > /etc/apt/sources.list.d/debian.sources
 
 # Common runtime dependencies. xvfb / x11vnc / noVNC for the VNC layer;
 # the GTK / X11 / font stack are required by Camoufox's Firefox binary at
