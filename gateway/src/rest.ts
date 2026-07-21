@@ -1,14 +1,18 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { createReadStream } from 'node:fs';
+import * as path from 'node:path';
 import type { Config } from './config.js';
 import type { Manifest } from './manifest.js';
 import { buildArgs, buildRawArgs, PASSTHROUGH_SITES, type RunResult } from './opencli.js';
 import { log } from './logger.js';
+import type { TempStore } from './video/temp-store.js';
 
 export interface Deps {
   cfg: Config;
   manifest: Manifest;
   run: (site: string, command: string, argv: string[], opts?: { passthrough?: boolean }) => Promise<RunResult>;
   vnc: (opts: { url?: string; clientHost?: string }) => Promise<string>;
+  tempStore?: TempStore;
 }
 
 function send(res: ServerResponse, status: number, body: unknown): void {
@@ -39,6 +43,15 @@ function extractHost(req: IncomingMessage): string | null {
   return typeof h === 'string' && h ? h : null;
 }
 
+function mimeFor(filename: string): string {
+  const ext = path.extname(filename).toLowerCase();
+  if (ext === '.mp4') return 'video/mp4';
+  if (ext === '.webm') return 'video/webm';
+  if (ext === '.mkv') return 'video/x-matroska';
+  if (ext === '.m4a') return 'audio/mp4';
+  return 'application/octet-stream';
+}
+
 export function createRestHandler(deps: Deps) {
   const { cfg, manifest } = deps;
   return async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -47,6 +60,23 @@ export function createRestHandler(deps: Deps) {
     const method = req.method ?? 'GET';
 
     if (method === 'GET' && path === '/health') return ok(res, { status: 'up' });
+
+    // Public file route (no auth, unguessable UUIDs). Must run BEFORE the
+    // auth block so file downloads aren't blocked by GATEWAY_API_KEY.
+    if (path.startsWith('/files/')) {
+      if (method !== 'GET') return err(res, 405, 'method_not_allowed', 'only GET is supported on /files');
+      if (!deps.tempStore) return err(res, 503, 'unavailable', 'temp store not configured');
+      const idWithExt = path.slice('/files/'.length);
+      const id = idWithExt.split('.')[0];
+      const entry = deps.tempStore.get(id);
+      if (!entry) return err(res, 404, 'not_found', 'file missing or expired');
+      res.setHeader('Content-Type', mimeFor(entry.filename));
+      res.setHeader('Content-Disposition', `attachment; filename="${entry.filename}"`);
+      res.setHeader('Content-Length', String(entry.size_bytes));
+      res.writeHead(200);
+      createReadStream(entry.path).pipe(res);
+      return;
+    }
 
     // auth
     if (cfg.apiKey) {

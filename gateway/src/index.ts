@@ -45,8 +45,10 @@ const server = createServer((req, res) => {
     // single transport across concurrent requests crossed JSON-RPC streams and
     // caused intermittent failures → Claude Code's circuit breaker tripped.
     // The inbound Host is passed via a per-request ctx (no shared global), so
-    // concurrent VNC-URL rewrites can't clobber each other.
-    const ctx = { clientHost: headerHostOf(req) };
+    // concurrent VNC-URL rewrites can't clobber each other. The full `req`
+    // is also forwarded so video_download can build absolute download URLs
+    // from X-Forwarded-* headers.
+    const ctx = { clientHost: headerHostOf(req), req };
     const mcpServer = createMcpServer(deps, ctx);
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     res.on('close', () => { transport.close(); mcpServer.close(); });
