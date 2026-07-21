@@ -20,6 +20,12 @@
 # ───────────────────────── Stage 1: camofox-browser ─────────────────────────
 FROM node:22-slim AS cb-build
 
+# Force IPv4-first DNS resolution (glibc AAAA → A reordering). v2raya's
+# HTTP proxy only covers IPv4; build containers otherwise prefer AAAA and
+# hit the slow / rate-limited IPv6 path (33.7 kB/s observed vs 180 kB/s
+# over IPv4). One line, no daemon changes, persists in the image.
+RUN echo 'precedence ::ffff:0:0/96  100' >> /etc/gai.conf
+
 # Pin Debian apt sources to cdn-fastly.deb.debian.org (Fastly CDN cache hit,
 # observed < 100ms on the build host). node:22-slim's default
 # /etc/apt/sources.list.d/debian.sources uses deb.debian.org, whose SRV-based
@@ -146,6 +152,10 @@ COPY gateway/src/ /build/gateway/src/
 RUN cd /build/gateway && npm ci --ignore-scripts && npm run build
 
 FROM node:22-slim AS runtime
+
+# Force IPv4-first DNS resolution. See cb-build comment — same root cause
+# (v2raya IPv4-only proxy vs IPv6-preferring glibc), affects apt + curl + npm.
+RUN echo 'precedence ::ffff:0:0/96  100' >> /etc/gai.conf
 
 # Pin Debian apt sources to cdn-fastly.deb.debian.org (see cb-build comment
 # above for why — avoids the same DNS-SRV-induced apt-get hang).
