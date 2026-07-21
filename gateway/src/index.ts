@@ -8,6 +8,7 @@ import { createMcpServer } from './mcp.js';
 import { build as buildSearchCache, size as searchCacheSize } from './search-cache.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { initLogger, log } from './logger.js';
+import { TempStore } from './video/temp-store.js';
 
 initLogger(process.env);
 const cfg = loadConfig(process.env);
@@ -15,11 +16,19 @@ const manifest = loadManifest(cfg.manifestPath);
 buildSearchCache(manifest);
 log.info('search_cache.ready', { sites: searchCacheSize() });
 
+// Singleton TempStore for video download temp files. 1-hour TTL; sweep every
+// 10 minutes (and once at boot to clean any leftovers from previous runs).
+const tmpDir = process.env.GATEWAY_TMP_DIR ?? './tmp';
+const tempStore = new TempStore({ tmpDir, ttlMs: 60 * 60 * 1000 });
+void tempStore.sweep();
+setInterval(() => { void tempStore.sweep(); }, 10 * 60 * 1000).unref();
+
 const deps: Deps = {
   cfg,
   manifest,
   run: (site, command, argv, opts) => runOpencli(cfg.opencliBin, site, command, argv, opts),
   vnc: (opts) => getVncUrl(cfg, opts),
+  tempStore,
 };
 
 const rest = createRestHandler(deps);
