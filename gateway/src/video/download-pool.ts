@@ -107,7 +107,16 @@ export class DownloadPool {
       fetchCookies: this.opts.fetchCamofoxCookies,
     });
     const outputTemplate = path.join(this.tmpDir, `video_${randomUUID()}.%(ext)s`);
-    const formatSel = quality === 'best' ? 'bv*+ba/b' : quality;
+    // Quality is a height cap: bestvideo picks the best video stream ≤ N px tall,
+    // bestaudio the best audio. Falls back to the single best combined stream
+    // if the site doesn't expose separate video/audio (rare; youtube always
+    // does, but legacy / non-dash sites may not). `worst` is intentionally the
+    // lowest-only combined stream (no DASH merge required).
+    const formatSel = quality === 'best'
+      ? 'bv*+ba/b'
+      : quality === 'worst'
+        ? 'worst'
+        : `bv*[height<=${parseInt(quality, 10)}]+ba/b[height<=${parseInt(quality, 10)}]`;
     const args = [
       '--no-warnings',
       '--no-playlist',

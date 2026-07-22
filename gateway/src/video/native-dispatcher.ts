@@ -14,11 +14,11 @@ const BV_RE = /^\/video\/(BV[1-9A-HJ-NP-Za-km-z]{10})/i;
 function bilibili(url: URL): DispatchResult | null {
   if (url.hostname.endsWith('bilibili.com')) {
     const m = BV_RE.exec(url.pathname);
-    if (m) return { method: 'native', site: 'bilibili', args: ['--bvid', m[1]] };
+    if (m) return { method: 'native', site: 'bilibili', args: [m[1]] };
     return null;
   }
   if (url.hostname === 'b23.tv' || url.hostname.endsWith('.b23.tv')) {
-    return { method: 'native', site: 'bilibili', args: ['--url', url.toString()] };
+    return { method: 'native', site: 'bilibili', args: [url.toString()] };
   }
   return null;
 }

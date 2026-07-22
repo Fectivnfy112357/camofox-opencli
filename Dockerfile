@@ -215,6 +215,40 @@ RUN yt-dlp --version || true \
     && pip3 install --break-system-packages --no-cache-dir -U "yt-dlp>=2026.7.0" 2>/dev/null || true \
     && yt-dlp --version || true
 
+# deno: yt-dlp's EJS (External JavaScript Solver) for YouTube signature
+# extraction. Without a JS runtime yt-dlp falls back to "Some formats may be
+# missing" / "Requested format is not available" because YouTube's signature
+# derivation needs JS evaluation. deno is a single static binary distributed
+# on GitHub (no apt package in Debian bookworm).
+RUN set -e; \
+    apt-get install -y --no-install-recommends unzip 2>/dev/null \
+    && curl -fsSL https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip -o /tmp/deno.zip \
+    && unzip -q /tmp/deno.zip -d /usr/local/bin/ \
+    && chmod +x /usr/local/bin/deno \
+    && rm /tmp/deno.zip \
+    && apt-get purge -y --auto-remove unzip 2>/dev/null \
+    && /usr/local/bin/deno --version
+
+# Pre-fetch yt-dlp's EJS challenge solver scripts from GitHub so the runtime
+# container doesn't need network on first video_download. yt-dlp will look
+# these up under the node user's $HOME/.cache/yt-dlp/ejs on first use; seeding
+# them here avoids the "Remote components ... were skipped" warning and lets
+# YouTube downloads work without extra runtime flags.
+RUN set -e; \
+    mkdir -p /home/node/.cache/yt-dlp/ejs \
+    && chown -R node:node /home/node/.cache \
+    && su -s /bin/bash node -c "yt-dlp --remote-components ejs:github -F https://www.youtube.com/watch?v=dQw4w9WgXcQ >/dev/null 2>&1 || true" \
+    && ls -la /home/node/.cache/yt-dlp/ejs
+
+# yt-dlp lives in the runtime layer — handy for transcript adapters and
+# already required by camofox-browser for YouTube extraction.
+#
+# IMPORTANT: do NOT download a pinned github release here. The pip-installed
+# version from the apt-get layer above is newer; overwriting `/usr/local/bin/
+# yt-dlp` with a stale release reverts youtube downloads to "older than 90
+# days" failures (B 站 412, youtube signature-solver deprecation). The
+# `yt-dlp --version` we re-check on the next line is the source of truth.
+
 # noVNC static client (re-installed here so the runtime layer is self-
 # contained even if Stage 1 changed in the future). Same tarball fallback
 # as cb-build (some base images block git-over-HTTPS).
@@ -228,12 +262,6 @@ RUN set -e; \
         && tar -xzf /tmp/novnc.tgz -C /opt/noVNC --strip-components=1 \
         && rm /tmp/novnc.tgz; \
     fi
-
-# yt-dlp lives in the runtime layer — handy for transcript adapters and
-# already required by camofox-browser for YouTube extraction.
-ARG YT_DLP_VERSION=2026.02.21
-RUN curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/download/${YT_DLP_VERSION}/yt-dlp" -o /usr/local/bin/yt-dlp \
- && chmod +x /usr/local/bin/yt-dlp
 
 # Layer in the three pre-built artifacts.
 COPY --from=cb-build /build/        /opt/camofox/
@@ -268,6 +296,15 @@ RUN mkdir -p /home/node/.camofox/profiles /home/node/.camofox/downloads /var/log
 # is enough — no wrapper script, no `npm link` (which would mutate
 # node_modules across layers).
 RUN ln -sf /opt/opencli/dist/src/main.js /usr/local/bin/opencli
+
+# Pin opencli's default Browser Bridge context to "fectivnfy" so the same
+# logged-in user the gateway's VNC /mcp login tool targets is also the user
+# opencli adapters (e.g. `opencli bilibili download`) inherit. Without this
+# opencli spawns the ephemeral "default" user, sees no SESSDATA cookie, and
+# yt-dlp reports HTTP 412 / sign-in gates on every download.
+RUN mkdir -p /home/node/.opencli \
+    && printf '{"defaultContextId":"fectivnfy"}\n' > /home/node/.opencli/browser-profiles.json \
+    && chown -R node:node /home/node/.opencli
 
 # Supervisord config — defines the four processes (camofox, opencli-
 # daemon, shim, gateway). Volumes & env wiring lives in docker-compose.
