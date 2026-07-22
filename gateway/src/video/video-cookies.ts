@@ -24,9 +24,14 @@ export interface ExportResult {
 }
 
 function hostMatches(cookieDomain: string, targetHost: string): boolean {
+  // Cookies set on `.example.com` apply to `example.com` and every subdomain
+  // (including `www.example.com`). Without the explicit `www.` fallback,
+  // `hostMatches('.youtube.com', 'www.youtube.com')` would return false even
+  // though the cookie was set on the parent domain — yt-dlp would load an
+  // empty cookie jar and the platform would treat us as anonymous.
   const d = cookieDomain.toLowerCase().replace(/^\./, '');
   const h = targetHost.toLowerCase().replace(/^\./, '');
-  return d === h || h.endsWith(`.${d}`);
+  return d === h || h === `www.${d}` || h.endsWith(`.${d}`);
 }
 
 function toNetscapeLine(c: CamofoxCookie): string {
