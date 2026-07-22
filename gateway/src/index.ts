@@ -9,12 +9,21 @@ import { build as buildSearchCache, size as searchCacheSize } from './search-cac
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { initLogger, log } from './logger.js';
 import { TempStore } from './video/temp-store.js';
+import * as fs from 'node:fs/promises';
 
 initLogger(process.env);
 const cfg = loadConfig(process.env);
 const manifest = loadManifest(cfg.manifestPath);
 buildSearchCache(manifest);
 log.info('search_cache.ready', { sites: searchCacheSize() });
+
+// Ensure tmp directory exists before creating TempStore
+try {
+  await fs.mkdir(cfg.tmpDir, { recursive: true });
+  log.info('gateway.tmp-ready', { tmpDir: cfg.tmpDir });
+} catch (e) {
+  log.warn('gateway.tmp-mkdir-failed', { tmpDir: cfg.tmpDir, error: String(e) });
+}
 
 // Singleton TempStore for video download temp files. 1-hour TTL; sweep every
 // 10 minutes (and once at boot to clean any leftovers from previous runs).
