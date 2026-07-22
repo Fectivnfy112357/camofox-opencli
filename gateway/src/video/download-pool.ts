@@ -65,14 +65,18 @@ export class DownloadPool {
     const route = dispatch(rawUrl);
     const host = url.hostname;
 
-    if (route.method === 'native' && route.site) {
-      const nativeResult = await this.runNative(route.site, route.args, quality);
-      if (nativeResult.ok) {
-        return { ...nativeResult, url: rawUrl };
-      }
-      // fall through to ytdlp
-    }
-
+    // We deliberately ignore `route.method === 'native'` here and always go
+    // through yt-dlp. Reasons:
+    //   1. The native path (opencli <site> download) is a thin wrapper that
+    //      spawns yt-dlp itself, adding a second cookie-fetch hop and a second
+    //      opencli→daemon round-trip per URL. yt-dlp here already has Camofox
+    //      cookies injected.
+    //   2. The native wrapper broke in practice (positional vs --bvid arg,
+    //      stale yt-dlp, SESSDATA scoping) — skipping it removes a class of
+    //      bugs in exchange for one extra fetchCookies per platform.
+    //   3. Direct yt-dlp gives uniform logs, uniform format selection, and
+    //      uniform upload tool the dispatcher never had to special-case.
+    void route; // documented intent: native path currently unused below
     return this.runYtdlp(rawUrl, host, quality);
   }
 
