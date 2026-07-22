@@ -1,8 +1,7 @@
-import { randomUUID } from 'node:crypto';
 import * as path from 'node:path';
 import { promises as fs } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import type { VideoDownloadResult, ErrorCode } from './video-types.js';
-import { dispatch } from './native-dispatcher.js';
 import { exportCookiesForHost, type CamofoxCookie } from './video-cookies.js';
 import { Semaphore } from './semaphore.js';
 import type { TempStore } from './temp-store.js';
@@ -18,10 +17,6 @@ export interface ExecFn {
   (cmd: string, args: string[], opts?: { cwd?: string; timeoutMs?: number }): Promise<RunResultLike>;
 }
 
-export interface RunOpencliFn {
-  (site: string, command: string, args: string[]): Promise<RunResultLike>;
-}
-
 export interface FetchCamofoxCookiesFn {
   (userId: string): Promise<CamofoxCookie[]>;
 }
@@ -30,7 +25,6 @@ export interface DownloadPoolOptions {
   tmpDir: string;
   tempStore: TempStore;
   workerCount?: number;
-  runOpencli: RunOpencliFn;
   fetchCamofoxCookies: FetchCamofoxCookiesFn;
   exec: ExecFn;
 }
@@ -58,53 +52,18 @@ export class DownloadPool {
     if (!['http:', 'https:'].includes(url.protocol)) {
       return { url: rawUrl, ok: false, error_code: 'INVALID_URL', error_message: `Unsupported protocol: ${url.protocol}` };
     }
-    return this.sem.serialize(() => this.runJob(rawUrl, url, quality));
+    return this.sem.serialize(() => this.runYtdlp(rawUrl, url.hostname, quality));
   }
 
-  private async runJob(rawUrl: string, url: URL, quality: string): Promise<VideoDownloadResult> {
-    const route = dispatch(rawUrl);
-    const host = url.hostname;
-
-    // We deliberately ignore `route.method === 'native'` here and always go
-    // through yt-dlp. Reasons:
-    //   1. The native path (opencli <site> download) is a thin wrapper that
-    //      spawns yt-dlp itself, adding a second cookie-fetch hop and a second
-    //      opencli→daemon round-trip per URL. yt-dlp here already has Camofox
-    //      cookies injected.
-    //   2. The native wrapper broke in practice (positional vs --bvid arg,
-    //      stale yt-dlp, SESSDATA scoping) — skipping it removes a class of
-    //      bugs in exchange for one extra fetchCookies per platform.
-    //   3. Direct yt-dlp gives uniform logs, uniform format selection, and
-    //      uniform upload tool the dispatcher never had to special-case.
-    void route; // documented intent: native path currently unused below
-    return this.runYtdlp(rawUrl, host, quality);
-  }
-
-  private async runNative(site: string, args: string[], _quality: string): Promise<VideoDownloadResult> {
-    const outputTemplate = path.join(this.tmpDir, `video_${randomUUID()}.%(ext)s`);
-    const fullArgs = [...args, '--output', outputTemplate];
-    const res = await this.opts.runOpencli(site, 'download', fullArgs);
-    if (!res.ok) {
-      const code: ErrorCode = /paid|membership|大会员/.test(res.stderr) ? 'PAID_CONTENT' : 'NATIVE_DOWNLOAD_FAILED';
-      return { url: '', ok: false, error_code: code, error_message: res.stderr.slice(0, 500) };
-    }
-    const file = await this.findOutputFile(outputTemplate);
-    if (!file) {
-      return { url: '', ok: false, error_code: 'NATIVE_DOWNLOAD_FAILED', error_message: 'output file not found' };
-    }
-    const { id, expires_at } = await this.opts.tempStore.register(file);
-    const entry = this.opts.tempStore.get(id)!;
-    return {
-      url: '',
-      ok: true,
-      method: 'native',
-      filename: entry.filename,
-      size_bytes: entry.size_bytes,
-      download_url: `/files/${id}${path.extname(entry.filename)}`,
-      expires_at,
-    };
-  }
-
+  // Single download path: yt-dlp with Camofox cookies injected.
+  //
+  // We deliberately do NOT route bilibili / instagram through opencli's native
+  // `download` commands. Those wrappers are thin shims around yt-dlp anyway —
+  // they spawn another opencli process, do another browser round-trip, and
+  // re-fetch cookies — so they used to fail in ways yt-dlp directly didn't
+  // (positional vs --bvid args, stale yt-dlp client, SESSDATA scoping). One
+  // yt-dlp invocation per URL with cookies fetched once per request keeps the
+  // behavior uniform across all 8 supported video sites.
   private async runYtdlp(rawUrl: string, host: string, quality: string): Promise<VideoDownloadResult> {
     const cookies = await exportCookiesForHost(host, {
       tmpDir: this.tmpDir,

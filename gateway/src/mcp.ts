@@ -216,13 +216,6 @@ function getVideoSubsystem(deps: Deps): VideoSubsystem {
     tmpDir,
     tempStore,
     workerCount: 3,
-    runOpencli: async (site, command, argv) => {
-      const r = await deps.run(site, command, argv);
-      const ok = !!r.ok;
-      const stdout = ok ? JSON.stringify(r.data ?? {}) : '';
-      const stderr = ok ? '' : (r.stderr ?? JSON.stringify(r.data ?? {}));
-      return { ok, exitCode: ok ? 0 : 1, stdout, stderr };
-    },
     fetchCamofoxCookies: fetchCookies,
     exec: async (cmd, args, opts) => {
       try {

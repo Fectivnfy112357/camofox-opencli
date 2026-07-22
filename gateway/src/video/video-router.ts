@@ -1,6 +1,12 @@
 import { VIDEO_SITES, DEFAULT_PLATFORMS, ALL_PLATFORMS, isVideoSite, type VideoSite, type VideoSearchResponse, type VideoSearchResult } from './video-types.js';
 import { Semaphore } from './semaphore.js';
-import type { RunResultLike, RunOpencliFn } from './download-pool.js';
+
+export type RunResultLike = { ok: boolean; exitCode: number; stdout: string; stderr: string };
+
+// Local copy of RunOpencliFn: the public one in download-pool.ts is gone now
+// that video_download always goes through yt-dlp. searchVideos still needs
+// to spawn opencli per platform — keep its type local to this file.
+type RunOpencliFn = (site: string, command: string, args: string[]) => Promise<RunResultLike>;
 
 export interface SearchInput {
   query: string;
