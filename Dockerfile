@@ -229,9 +229,9 @@ RUN set -e; \
     mkdir -p /home/node/.cache/yt-dlp/ejs \
     && chown -R node:node /home/node/.cache \
     # -F only lists formats and does NOT trigger EJS module fetch.
-    # Run an actual minimal download (`worst*` ~1-2 MB) to force yt-dlp to
+    # Run an actual minimal download (`worst` ~1-2 MB) to force yt-dlp to
     # pull the JS challenge solver from GitHub. Discard the file after.
-    && su -s /bin/bash node -c "yt-dlp --remote-components ejs:github -f 'worst*' --no-warnings -o /tmp/__yt_probe.%(ext)s https://www.youtube.com/watch?v=jNQXAC9IVRw 2>&1 | tail -10 ; rm -f /tmp/__yt_probe.*" \
+    && su -s /bin/bash node -c "yt-dlp --remote-components ejs:github -f worst --no-warnings -o /tmp/__yt_probe.%(ext)s https://www.youtube.com/watch?v=jNQXAC9IVRw 2>&1 | tail -10 ; rm -f /tmp/__yt_probe.*" \
         || echo "EJS pre-cache: yt-dlp fetch failed (network) — runtime will retry" \
     && echo "=== EJS cache contents ===" \
     && ls -la /home/node/.cache/yt-dlp/ejs
