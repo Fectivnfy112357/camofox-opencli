@@ -228,7 +228,9 @@ RUN set -e; \
 RUN set -e; \
     mkdir -p /home/node/.cache/yt-dlp/ejs \
     && chown -R node:node /home/node/.cache \
-    && su -s /bin/bash node -c "yt-dlp --remote-components ejs:github -F https://www.youtube.com/watch?v=dQw4w9WgXcQ >/dev/null 2>&1 || true" \
+    && su -s /bin/bash node -c "yt-dlp --remote-components ejs:github -F https://www.youtube.com/watch?v=dQw4w9WgXcQ 2>&1 | tail -20" \
+        || echo "EJS pre-cache: yt-dlp fetch failed (network) — runtime will retry" \
+    && echo "=== EJS cache contents ===" \
     && ls -la /home/node/.cache/yt-dlp/ejs
 
 # yt-dlp lives in the runtime layer — handy for transcript adapters and
