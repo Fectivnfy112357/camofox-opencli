@@ -110,7 +110,7 @@ export class DownloadPool {
       ...(this.opts.proxyUrl ? ['--proxy', this.opts.proxyUrl] : []),
       rawUrl,
     ];
-    const res = await this.opts.exec('yt-dlp', args, { cwd: this.tmpDir, timeoutMs: 10 * 60 * 1000 });
+    const res = await this.opts.exec('yt-dlp', args, { cwd: this.outputDir, timeoutMs: 10 * 60 * 1000 });
     if (res.exitCode !== 0) {
       const code: ErrorCode = /Sign in|login|403/.test(res.stderr) ? 'LOGIN_REQUIRED' : 'YT_DLP_FAILED';
       return { url: rawUrl, ok: false, error_code: code, error_message: res.stderr.slice(0, 500) };

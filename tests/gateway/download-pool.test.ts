@@ -13,7 +13,8 @@ describe('DownloadPool', () => {
 
   function makePool(workerCount = 3): DownloadPool {
     return new DownloadPool({
-      tmpDir,
+      cookieDir: tmpDir,
+      outputDir: tmpDir,
       tempStore: store,
       workerCount,
       fetchCamofoxCookies,
@@ -50,7 +51,8 @@ describe('DownloadPool', () => {
       return { exitCode: 0, stdout: '', stderr: '' };
     });
     const pool = new DownloadPool({
-      tmpDir,
+      cookieDir: tmpDir,
+      outputDir: tmpDir,
       tempStore: store,
       workerCount: 3,
       fetchCamofoxCookies,
@@ -69,7 +71,8 @@ describe('DownloadPool', () => {
   it('returns YT_DLP_FAILED when yt-dlp exits non-zero', async () => {
     const execFn = vi.fn().mockResolvedValue({ exitCode: 1, stdout: '', stderr: '403 forbidden' });
     const pool = new DownloadPool({
-      tmpDir,
+      cookieDir: tmpDir,
+      outputDir: tmpDir,
       tempStore: store,
       workerCount: 3,
       fetchCamofoxCookies,
@@ -96,7 +99,8 @@ describe('DownloadPool', () => {
       await fs.writeFile(path.join(tmpDir, `f${i}.mp4`), 'x');
     }
     const pool = new DownloadPool({
-      tmpDir,
+      cookieDir: tmpDir,
+      outputDir: tmpDir,
       tempStore: store,
       workerCount: 3,
       fetchCamofoxCookies,
