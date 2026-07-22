@@ -201,7 +201,14 @@ function getVideoSubsystem(deps: Deps): VideoSubsystem {
   const tempStore = deps.tempStore ?? new TempStore({ tmpDir, ttlMs: 60 * 60 * 1000 });
   const camofoxBase = process.env.CAMOFOX_BASE_URL ?? 'http://127.0.0.1:9377';
   const camofoxKey = process.env.CAMOFOX_API_KEY ?? '';
-  const userId = process.env.CAMOFOX_USER_ID ?? 'default';
+  // cfg.camofoxUserId is the authoritative user; the CAMOFOX_USER_ID env var
+  // exists for parity with camofox-client / shim but defaults to 'default'
+  // there. The gateway's persisted profile is the one the VNC /mcp login
+  // writes cookies into — that's `fectivnfy` in this deployment, so we trust
+  // the config-driven value here.
+  const userId = deps.cfg.camofoxUserId || process.env.CAMOFOX_USER_ID || 'default';
+  // eslint-disable-next-line no-console
+  console.log('[gateway][cookies] using userId=' + userId + ' base=' + camofoxBase + ' hasKey=' + !!camofoxKey);
 
   const fetchCookies = async (uid: string): Promise<CamofoxCookie[]> => {
     const url = `${camofoxBase}/sessions/${encodeURIComponent(uid)}/cookies`;
@@ -209,7 +216,61 @@ function getVideoSubsystem(deps: Deps): VideoSubsystem {
     if (camofoxKey) headers['Authorization'] = `Bearer ${camofoxKey}`;
     const res = await fetch(url, { headers });
     if (!res.ok) throw new Error(`Camofox cookies HTTP ${res.status}`);
-    return (await res.json()) as CamofoxCookie[];
+    const data = (await res.json()) as unknown;
+    // Camofox can return either a flat list (`[ {cookie}, ... ]`) or an
+    // envelope object ({ cookies: [...] }). Older builds also returned the
+    // string "..." when there were no cookies; we treat everything non-array
+    // as an empty list rather than letting the caller crash.
+    if (Array.isArray(data)) return data as CamofoxCookie[];
+    if (data && typeof data === 'object') {
+      const cookies = (data as { cookies?: unknown }).cookies;
+      if (Array.isArray(cookies)) return cookies as CamofoxCookie[];
+    }
+    return [];
+  };
+
+  // `wakeBrowser` re-establishes the Camofox browser session by creating a tab
+  // scoped to the current user + a synthetic session key. The Camofox /sessions/
+  // /userId/cookies endpoint refuses to return cookies when no live tab/session
+  // is bound to the user (returns 409 "No active session" after IDLE_TIMEOUT,
+  // ~30 minutes of inactivity, kicks in). We saw this break yt-dlp-based
+  // downloads every time the user walked away — the gateway would fall back to
+  // an empty cookie jar and yt-dlp would treat us as anonymous. Posting a
+  // throwaway tab before re-fetching is enough to bring the session back.
+  const wakeBrowser = async (uid: string): Promise<void> => {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+    if (camofoxKey) headers['Authorization'] = `Bearer ${camofoxKey}`;
+    // sessionKey is required by Camofox POST /tabs. We use a stable per-user
+    // token so repeated wake calls reuse the same sessionKey and don't pile
+    // up stray tabs (Camofox dedupes by userId+sessionKey).
+    const sessionKey = `gateway-keepalive-${uid}`;
+    const url = `${camofoxBase}/tabs`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        userId: uid,
+        sessionKey,
+        // Camofox URL validator rejects about:blank (only http/https allowed).
+        // Navigate to a benign root URL so the sessionTab context doesn't
+        // need a guess about which download target is about to fire —
+        // cookies themselves come from the persistent user profile, not the
+        // current page URL.
+        url: 'https://example.com/',
+      }),
+    });
+    // We don't care about the body — 2xx means the session is now bound.
+    // A 4xx/5xx here is logged by the caller; we just propagate.
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Camofox wake HTTP ${res.status}: ${text.slice(0, 200)}`);
+    }
+    // Drain the response so the socket closes cleanly; otherwise Camofox
+    // holds the HTTP keep-alive and subsequent /cookies calls queue behind it.
+    await res.text().catch(() => undefined);
   };
 
   const pool = new DownloadPool({
@@ -217,6 +278,7 @@ function getVideoSubsystem(deps: Deps): VideoSubsystem {
     tempStore,
     workerCount: 3,
     fetchCamofoxCookies: fetchCookies,
+    wakeBrowser: (uid: string) => wakeBrowser(uid),
     exec: async (cmd, args, opts) => {
       try {
         const { stdout, stderr } = await execAsync(cmd, args, opts ?? {});
@@ -226,6 +288,7 @@ function getVideoSubsystem(deps: Deps): VideoSubsystem {
         return { ok: false, exitCode: e.code ?? 1, stdout: e.stdout ?? '', stderr: e.stderr ?? String(err) };
       }
     },
+    userId,
   });
 
   _video = { pool, fetchCookies };

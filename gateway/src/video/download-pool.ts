@@ -26,7 +26,9 @@ export interface DownloadPoolOptions {
   tempStore: TempStore;
   workerCount?: number;
   fetchCamofoxCookies: FetchCamofoxCookiesFn;
+  wakeBrowser?: (userId: string) => Promise<void>;
   exec: ExecFn;
+  userId: string;
 }
 
 export class DownloadPool {
@@ -36,6 +38,8 @@ export class DownloadPool {
   constructor(private opts: DownloadPoolOptions) {
     this.sem = new Semaphore(opts.workerCount ?? 3);
     this.tmpDir = opts.tmpDir;
+    // eslint-disable-next-line no-console
+    console.log('[gateway][download-pool] using userId=' + opts.userId);
   }
 
   async downloadMany(urls: string[], quality: string): Promise<VideoDownloadResult[]> {
@@ -65,9 +69,13 @@ export class DownloadPool {
   // yt-dlp invocation per URL with cookies fetched once per request keeps the
   // behavior uniform across all 8 supported video sites.
   private async runYtdlp(rawUrl: string, host: string, quality: string): Promise<VideoDownloadResult> {
+    // eslint-disable-next-line no-console
+    console.log('[gateway][dl] runYtdlp url=' + rawUrl + ' host=' + host + ' quality=' + quality + ' userId=' + this.opts.userId);
     const cookies = await exportCookiesForHost(host, {
       tmpDir: this.tmpDir,
       fetchCookies: this.opts.fetchCamofoxCookies,
+      wakeBrowser: this.opts.wakeBrowser,
+      userId: this.opts.userId,
     });
     const outputTemplate = path.join(this.tmpDir, `video_${randomUUID()}.%(ext)s`);
     // Quality is a height cap: bestvideo picks the best video stream ≤ N px tall,
