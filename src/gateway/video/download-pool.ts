@@ -30,6 +30,10 @@ export interface DownloadPoolOptions {
   wakeBrowser?: (userId: string) => Promise<void>;
   exec: ExecFn;
   userId: string;
+  /** Optional proxy URL (http://host:port). When set, yt-dlp receives
+   *  `--proxy <url>` so video downloads exit via v2raya instead of the
+   *  bare container IP. */
+  proxyUrl?: string | null;
 }
 
 export class DownloadPool {
@@ -93,6 +97,7 @@ export class DownloadPool {
       '--cookies', cookies.cookieFilePath,
       '-o', outputTemplate,
       '-f', formatSel,
+      ...(this.opts.proxyUrl ? ['--proxy', this.opts.proxyUrl] : []),
       rawUrl,
     ];
     const res = await this.opts.exec('yt-dlp', args, { cwd: this.tmpDir, timeoutMs: 10 * 60 * 1000 });

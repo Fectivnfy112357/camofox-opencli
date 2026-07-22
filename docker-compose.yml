@@ -83,6 +83,10 @@ services:
       OPENCLI_MANIFEST: "/opt/opencli/cli-manifest.json"
       GATEWAY_LOG_DIR: "/var/log/gateway"
       GATEWAY_LOG_LEVEL: "info"
+      # Point the gateway's video_download temp dir at the bind-mounted
+      # /opt/gateway/tmp. Without this, files land in the container's
+      # ephemeral /tmp and never reach the host's ./data/download.
+      GATEWAY_TMP_DIR: "/opt/gateway/tmp"
 
     shm_size: "2gb"
     security_opt:

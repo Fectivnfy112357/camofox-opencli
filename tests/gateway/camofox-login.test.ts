@@ -7,6 +7,7 @@ const cfg: Config = {
   camofoxUrl: 'http://textvision.top:9377', camofoxApiKey: 'k', camofoxUserId: 'u',
   publicVncHost: 'textvision.top',
   tmpDir: '/tmp', logDir: '/tmp', logLevel: 'info',
+  proxyUrl: null,
 };
 
 function json(body: unknown) {

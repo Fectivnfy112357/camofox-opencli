@@ -210,6 +210,11 @@ function getVideoSubsystem(deps: Deps): VideoSubsystem {
   // eslint-disable-next-line no-console
   console.log('[gateway][cookies] using userId=' + userId + ' base=' + camofoxBase + ' hasKey=' + !!camofoxKey);
 
+  // Forward the gateway-configured proxy to yt-dlp so video downloads
+  // exit via v2raya instead of the bare container IP (which gets
+  // 403 / region-locked by most non-China sites).
+  const proxyUrl = deps.cfg.proxyUrl ?? null;
+
   const fetchCookies = async (uid: string): Promise<CamofoxCookie[]> => {
     const url = `${camofoxBase}/sessions/${encodeURIComponent(uid)}/cookies`;
     const headers: Record<string, string> = { 'Accept': 'application/json' };
@@ -289,6 +294,7 @@ function getVideoSubsystem(deps: Deps): VideoSubsystem {
       }
     },
     userId,
+    proxyUrl,
   });
 
   _video = { pool, fetchCookies };

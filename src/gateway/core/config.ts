@@ -17,6 +17,12 @@ export interface Config {
   /** Directory for the JSONL gateway log file. */
   logDir: string;
   logLevel: 'debug' | 'info' | 'warn' | 'error';
+  /** Optional HTTP/HTTPS proxy passed to yt-dlp (`--proxy`) so video
+   *  downloads exit via v2raya instead of the bare container IP. Host and
+   *  port are read from PROXY_HOST / PROXY_PORT (matching the variables
+   *  already declared in docker-compose.yml for Camofox's fingerprint
+   *  proxy layer). Empty / unset ⇒ no proxy flag is added to yt-dlp. */
+  proxyUrl: string | null;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv): Config {
@@ -32,5 +38,15 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     tmpDir: env.GATEWAY_TMP_DIR?.trim() || '/tmp',
     logDir: env.GATEWAY_LOG_DIR?.trim() || '/var/log/gateway',
     logLevel: (env.GATEWAY_LOG_LEVEL?.trim() as 'debug' | 'info' | 'warn' | 'error') || 'info',
+    proxyUrl: buildProxyUrl(env.PROXY_HOST, env.PROXY_PORT),
   };
+}
+
+function buildProxyUrl(host: string | undefined, port: string | undefined): string | null {
+  const h = host?.trim();
+  const p = port?.trim();
+  if (!h) return null;
+  // Strip an existing scheme so we don't end up with `http://http://...`.
+  const bare = h.replace(/^[a-z]+:\/\//i, '');
+  return `http://${bare}${p ? `:${p}` : ''}`;
 }

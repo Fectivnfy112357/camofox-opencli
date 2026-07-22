@@ -9,7 +9,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const manifest = loadManifest(join(here, '..', '__fixtures__', 'manifest.sample.json'));
 const cfg: Config = { port: 8080, apiKey: 'secret', opencliBin: 'opencli', manifestPath: '/x',
   camofoxUrl: 'http://h:9377', camofoxApiKey: null, camofoxUserId: 'u',
-  publicVncHost: 'textvision.top', tmpDir: '/tmp', logDir: '/tmp', logLevel: 'info' };
+  publicVncHost: 'textvision.top', tmpDir: '/tmp', logDir: '/tmp', logLevel: 'info',
+  proxyUrl: null,
+};
 
 function mockRes() {
   return { statusCode: 0, body: '', headers: {} as Record<string,string>,
