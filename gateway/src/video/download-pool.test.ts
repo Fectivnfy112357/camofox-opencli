@@ -8,7 +8,6 @@ import { TempStore } from './temp-store.js';
 describe('DownloadPool', () => {
   let tmpDir: string;
   let store: TempStore;
-  let runOpencli: any;
   let fetchCamofoxCookies: any;
   let exec: any;
 
@@ -17,7 +16,6 @@ describe('DownloadPool', () => {
       tmpDir,
       tempStore: store,
       workerCount,
-      runOpencli,
       fetchCamofoxCookies,
       exec,
     });
@@ -26,7 +24,6 @@ describe('DownloadPool', () => {
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'video-dlpool-'));
     store = new TempStore({ tmpDir, ttlMs: 60 * 60 * 1000 });
-    runOpencli = vi.fn();
     fetchCamofoxCookies = vi.fn().mockResolvedValue([]);
     exec = vi.fn();
   });
@@ -56,7 +53,6 @@ describe('DownloadPool', () => {
       tmpDir,
       tempStore: store,
       workerCount: 3,
-      runOpencli,
       fetchCamofoxCookies,
       exec: execFn,
     });
@@ -70,36 +66,12 @@ describe('DownloadPool', () => {
     expect(execFn).toHaveBeenCalledTimes(1);
   });
 
-  it('falls back to yt-dlp when native download fails', async () => {
-    const execFn = vi.fn().mockImplementation(async (_cmd: string, args: string[]) => {
-      const tpl = args[args.indexOf('-o') + 1];
-      const realExt = tpl.replace('.%(ext)s', '.mp4');
-      await fs.writeFile(realExt, 'fb');
-      return { exitCode: 0, stdout: '', stderr: '' };
-    });
-    const localRun = vi.fn().mockResolvedValue({ ok: false, exitCode: 1, stdout: '', stderr: 'paid' });
-    const pool = new DownloadPool({
-      tmpDir,
-      tempStore: store,
-      workerCount: 3,
-      runOpencli: localRun,
-      fetchCamofoxCookies,
-      exec: execFn,
-    });
-    const r = await pool.downloadOne('https://www.bilibili.com/video/BV1xx411c7mD', 'best');
-    expect(r.ok).toBe(true);
-    if (r.ok) expect(r.method).toBe('ytdlp');
-    expect(localRun).toHaveBeenCalledTimes(1);
-    expect(execFn).toHaveBeenCalledTimes(1);
-  });
-
   it('returns YT_DLP_FAILED when yt-dlp exits non-zero', async () => {
     const execFn = vi.fn().mockResolvedValue({ exitCode: 1, stdout: '', stderr: '403 forbidden' });
     const pool = new DownloadPool({
       tmpDir,
       tempStore: store,
       workerCount: 3,
-      runOpencli,
       fetchCamofoxCookies,
       exec: execFn,
     });
@@ -127,7 +99,6 @@ describe('DownloadPool', () => {
       tmpDir,
       tempStore: store,
       workerCount: 3,
-      runOpencli,
       fetchCamofoxCookies,
       exec: execFn,
     });
