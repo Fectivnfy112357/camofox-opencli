@@ -1,16 +1,20 @@
 {
-  "name": "camofox-shim",
-  "version": "0.1.0",
-  "description": "OpenCLI Browser Bridge emulator — translates OpenCLI daemon commands to Camofox REST API calls",
+  "name": "camofox-opencli",
+  "version": "0.2.1",
+  "description": "OpenCLI Browser Bridge (shim) + HTTP/MCP Gateway exposing 173+ site adapters to external agents",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/gateway/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "tsx src/index.ts",
+    "start": "node dist/gateway/index.js",
+    "start:shim": "node dist/shim/index.js",
+    "dev": "tsx src/gateway/index.ts",
+    "dev:shim": "tsx src/shim/index.ts",
+    "dev:mock": "tsx src/gateway/dev-mock.ts",
     "test": "vitest run"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.24.3",
     "express": "^5.1.0",
     "ws": "^8.18.0"
   },
@@ -20,6 +24,6 @@
     "@types/ws": "^8.5.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
-    "vitest": "^4.1.10"
+    "vitest": "^2.1.0"
   }
 }

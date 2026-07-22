@@ -147,23 +147,14 @@ RUN npm run build
 RUN rm -rf node_modules/.cache src tsconfig.json package-lock.json \
         bun.lock docs README.md CHANGELOG.md
 
-# ───────────────────────── Stage 3: shim + gateway ─────────────────────────
+# ───────────────────────── Stage 3: shim + gateway (single repo) ─────────────────────────
 FROM node:22-slim AS sg-build
 
-WORKDIR /build/shim
-COPY src/ /build/shim/src/
-COPY package.json package-lock.json tsconfig.json vitest.config.ts /build/shim/
+WORKDIR /build
+COPY package.json package-lock.json tsconfig.json vitest.config.ts /build/
+COPY src/ /build/src/
 
-RUN cd /build/shim && npm ci --ignore-scripts && npm run build
-
-WORKDIR /build/gateway
-COPY gateway/package.json gateway/package-lock.json gateway/tsconfig.json gateway/vitest.config.ts /build/gateway/
-COPY gateway/src/ /build/gateway/src/
-
-# The gateway reads cli-manifest.json at runtime from OPENCLI_MANIFEST env.
-# We bake a copy in at /opt/opencli/cli-manifest.json via stage 4 — the
-# gateway build itself only needs its own sources + sdk.
-RUN cd /build/gateway && npm ci --ignore-scripts && npm run build
+RUN npm ci --ignore-scripts && npm run build
 
 FROM node:22-slim AS runtime
 
@@ -267,10 +258,8 @@ RUN set -e; \
 COPY --from=cb-build /build/        /opt/camofox/
 COPY --from=cb-build /home/node/.cache/camoufox/ /home/node/.cache/camoufox/
 COPY --from=oc-build /build/        /opt/opencli/
-COPY --from=sg-build /build/shim/dist/      /opt/shim/dist/
-COPY --from=sg-build /build/shim/package.json /opt/shim/
-COPY --from=sg-build /build/gateway/dist/   /opt/gateway/dist/
-COPY --from=sg-build /build/gateway/package.json /opt/gateway/
+COPY --from=sg-build /build/dist/shim/      /opt/shim/
+COPY --from=sg-build /build/dist/gateway/   /opt/gateway/
 
 # Install production node_modules for shim + gateway (the build stage only
 # ran `npm ci` once, including devDeps for tsc — re-install with omit=dev

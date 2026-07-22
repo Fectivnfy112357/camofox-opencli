@@ -75,20 +75,14 @@ RUN npm ci --ignore-scripts && npm run build
 RUN rm -rf node_modules/.cache src tsconfig.json package-lock.json \
         bun.lock docs README.md CHANGELOG.md
 
-# ──────────────────────── Stage 3: shim + gateway ─────────────────────────
+# ──────────────────────── Stage 3: shim + gateway (single repo) ─────────────────────────
 FROM node:22-slim AS sg-build
 
-WORKDIR /build/shim
-COPY src/ /build/shim/src/
-COPY package.json package-lock.json tsconfig.json vitest.config.ts /build/shim/
+WORKDIR /build
+COPY package.json package-lock.json tsconfig.json vitest.config.ts /build/
+COPY src/ /build/src/
 
-RUN cd /build/shim && npm ci --ignore-scripts && npm run build
-
-WORKDIR /build/gateway
-COPY gateway/package.json gateway/package-lock.json gateway/tsconfig.json gateway/vitest.config.ts /build/gateway/
-COPY gateway/src/ /build/gateway/src/
-
-RUN cd /build/gateway && npm ci --ignore-scripts && npm run build
+RUN npm ci --ignore-scripts && npm run build
 
 # ──────────────────────── Stage 4: runtime ─────────────────────────
 FROM node:22-slim AS runtime
@@ -144,10 +138,8 @@ RUN curl -fsSL https://codeload.github.com/novnc/noVNC/tar.gz/refs/heads/master 
 COPY --from=cb-build /build/        /opt/camofox/
 COPY --from=cb-build /home/node/.cache/camoufox/ /home/node/.cache/camoufox/
 COPY --from=oc-build /build/        /opt/opencli/
-COPY --from=sg-build /build/shim/dist/      /opt/shim/dist/
-COPY --from=sg-build /build/shim/package.json /opt/shim/
-COPY --from=sg-build /build/gateway/dist/   /opt/gateway/dist/
-COPY --from=sg-build /build/gateway/package.json /opt/gateway/
+COPY --from=sg-build /build/dist/shim/      /opt/shim/
+COPY --from=sg-build /build/dist/gateway/   /opt/gateway/
 
 RUN cd /opt/shim && npm install --omit=dev --no-audit --no-fund \
  && rm -rf node_modules/.cache
