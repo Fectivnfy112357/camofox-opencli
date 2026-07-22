@@ -83,10 +83,12 @@ services:
       OPENCLI_MANIFEST: "/opt/opencli/cli-manifest.json"
       GATEWAY_LOG_DIR: "/var/log/gateway"
       GATEWAY_LOG_LEVEL: "info"
-      # Point the gateway's video_download temp dir at the bind-mounted
-      # /opt/gateway/tmp. Without this, files land in the container's
-      # ephemeral /tmp and never reach the host's ./data/download.
-      GATEWAY_TMP_DIR: "/opt/gateway/tmp"
+      # Where yt-dlp writes downloaded videos (and where TempStore looks
+      # for them when serving /files/:id). Bind-mounted below to
+      # ./data/download on the host. Cookie staging (separate dir) goes to
+      # /opt/gateway/cookies, which is bind-mounted to ./data/cookies.
+      GATEWAY_OUTPUT_DIR: "/opt/gateway/tmp"
+      GATEWAY_COOKIE_DIR: "/opt/gateway/cookies"
 
     shm_size: "2gb"
     security_opt:
@@ -103,6 +105,10 @@ services:
       # video_download temp files (TTL 1h, swept every 10min). Bind-mount
       # to ./data/download so host-side cleanup is also possible.
       - "${GATEWAY_TMP_HOST_DIR:-./data/download}:/opt/gateway/tmp"
+      # Per-request Netscape cookie staging (one file per video_download
+      # call, ephemeral from yt-dlp's perspective but durable on disk so
+      # failed downloads leave a trail. Visible on the host for debugging.
+      - "${GATEWAY_COOKIE_HOST_DIR:-./data/cookies}:/opt/gateway/cookies"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:9377/health"]
       interval: 30s

@@ -194,7 +194,7 @@ let _video: VideoSubsystem | null = null;
 
 function getVideoSubsystem(deps: Deps): VideoSubsystem {
   if (_video) return _video;
-  const tmpDir = deps.tempStore?.['opts']?.tmpDir ?? process.env.GATEWAY_TMP_DIR ?? './tmp';
+  const tmpDir = deps.tempStore?.['opts']?.tmpDir ?? deps.cfg.outputDir ?? './tmp';
   const execAsync = promisify(execCb) as unknown as (
     cmd: string, args: string[], opts?: { cwd?: string; timeoutMs?: number },
   ) => Promise<{ stdout: string; stderr: string }>;
@@ -279,7 +279,8 @@ function getVideoSubsystem(deps: Deps): VideoSubsystem {
   };
 
   const pool = new DownloadPool({
-    tmpDir,
+    cookieDir: deps.cfg.cookieDir,
+    outputDir: deps.cfg.outputDir,
     tempStore,
     workerCount: 3,
     fetchCamofoxCookies: fetchCookies,

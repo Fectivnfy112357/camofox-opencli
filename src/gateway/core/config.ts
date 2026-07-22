@@ -14,6 +14,13 @@ export interface Config {
    *  supervisord (no `directory=` set) and `./tmp` would resolve to `/tmp`
    *  only by accident. Override with GATEWAY_TMP_DIR. */
   tmpDir: string;
+  /** Directory for short-lived cookie staging files (one Netscape-formatted
+   *  blob per video_download call, consumed by yt-dlp via `--cookies`).
+   *  Defaults to /tmp. */
+  cookieDir: string;
+  /** Directory yt-dlp writes downloaded videos into. Independent from
+   *  cookieDir so a host bind-mount on this path doesn't expose cookies. */
+  outputDir: string;
   /** Directory for the JSONL gateway log file. */
   logDir: string;
   logLevel: 'debug' | 'info' | 'warn' | 'error';
@@ -36,6 +43,8 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     camofoxUserId: env.CAMOFOX_USER_ID?.trim() || 'default',
     publicVncHost: env.PUBLIC_VNC_HOST?.trim() || env.PUBLIC_HOST?.trim() || null,
     tmpDir: env.GATEWAY_TMP_DIR?.trim() || '/tmp',
+    cookieDir: env.GATEWAY_COOKIE_DIR?.trim() || '/opt/gateway/cookies',
+    outputDir: env.GATEWAY_OUTPUT_DIR?.trim() || '/opt/gateway/tmp',
     logDir: env.GATEWAY_LOG_DIR?.trim() || '/var/log/gateway',
     logLevel: (env.GATEWAY_LOG_LEVEL?.trim() as 'debug' | 'info' | 'warn' | 'error') || 'info',
     proxyUrl: buildProxyUrl(env.PROXY_HOST, env.PROXY_PORT),

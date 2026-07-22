@@ -23,7 +23,15 @@ export interface FetchCamofoxCookiesFn {
 }
 
 export interface DownloadPoolOptions {
-  tmpDir: string;
+  /** Directory for per-request Netscape cookie staging files. yt-dlp
+   *  reads these via `--cookies <path>` and the file may be left on disk
+   *  for diagnostics; should be a host-visible mount if you want to
+   *  inspect them. */
+  cookieDir: string;
+  /** Directory yt-dlp writes downloaded videos into. Independent from
+   *  cookieDir so downloaded files don't share a directory with cookie
+   *  blobs — bind-mount this if you want videos visible on the host. */
+  outputDir: string;
   tempStore: TempStore;
   workerCount?: number;
   fetchCamofoxCookies: FetchCamofoxCookiesFn;
@@ -38,11 +46,13 @@ export interface DownloadPoolOptions {
 
 export class DownloadPool {
   private sem: Semaphore;
-  private tmpDir: string;
+  private cookieDir: string;
+  private outputDir: string;
 
   constructor(private opts: DownloadPoolOptions) {
     this.sem = new Semaphore(opts.workerCount ?? 3);
-    this.tmpDir = opts.tmpDir;
+    this.cookieDir = opts.cookieDir;
+    this.outputDir = opts.outputDir;
     log.info('download-pool.ctor', { userId: opts.userId });
   }
 
@@ -75,12 +85,12 @@ export class DownloadPool {
   private async runYtdlp(rawUrl: string, host: string, quality: string): Promise<VideoDownloadResult> {
     log.info('download.run-ytdlp', { url: rawUrl, host, quality, userId: this.opts.userId });
     const cookies = await exportCookiesForHost(host, {
-      tmpDir: this.tmpDir,
+      tmpDir: this.cookieDir,
       fetchCookies: this.opts.fetchCamofoxCookies,
       wakeBrowser: this.opts.wakeBrowser,
       userId: this.opts.userId,
     });
-    const outputTemplate = path.join(this.tmpDir, `video_${randomUUID()}.%(ext)s`);
+    const outputTemplate = path.join(this.outputDir, `video_${randomUUID()}.%(ext)s`);
     // Quality is a height cap: bestvideo picks the best video stream ≤ N px tall,
     // bestaudio the best audio. Falls back to the single best combined stream
     // if the site doesn't expose separate video/audio (rare; youtube always

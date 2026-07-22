@@ -10,6 +10,7 @@ const manifest = loadManifest(join(here, '..', '__fixtures__', 'manifest.sample.
 const cfg: Config = { port: 8080, apiKey: 'secret', opencliBin: 'opencli', manifestPath: '/x',
   camofoxUrl: 'http://h:9377', camofoxApiKey: null, camofoxUserId: 'u',
   publicVncHost: 'textvision.top', tmpDir: '/tmp', logDir: '/tmp', logLevel: 'info',
+  cookieDir: '/tmp', outputDir: '/tmp',
   proxyUrl: null,
 };
 

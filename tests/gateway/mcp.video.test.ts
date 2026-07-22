@@ -20,6 +20,9 @@ function makeDeps(tmpDir: string): Deps {
     tmpDir,
     logDir: '/tmp',
     logLevel: 'info',
+    cookieDir: '/tmp',
+    outputDir: '/tmp',
+    proxyUrl: null,
   };
   const tempStore = new TempStore({ tmpDir, ttlMs: 60 * 60 * 1000 });
   return {
