@@ -138,6 +138,9 @@ RUN curl -fsSL https://codeload.github.com/novnc/noVNC/tar.gz/refs/heads/master 
 COPY --from=cb-build /build/        /opt/camofox/
 COPY --from=cb-build /home/node/.cache/camoufox/ /home/node/.cache/camoufox/
 COPY --from=oc-build /build/        /opt/opencli/
+# tsc emits /build/dist/{shim,gateway}/... mirroring src/. Shim's entry is
+# dist/shim/index.js; gateway's entry is dist/gateway/mcp/index.js (the
+# server bootstrap now lives in src/gateway/mcp/).
 COPY --from=sg-build /build/dist/shim/      /opt/shim/
 COPY --from=sg-build /build/dist/gateway/   /opt/gateway/
 COPY --from=sg-build /build/package.json    /opt/shim/package.json
