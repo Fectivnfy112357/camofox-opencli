@@ -225,13 +225,19 @@ RUN set -e; \
 # these up under the node user's $HOME/.cache/yt-dlp/ejs on first use; seeding
 # them here avoids the "Remote components ... were skipped" warning and lets
 # YouTube downloads work without extra runtime flags.
+COPY scripts/build/prefetch-ejs.sh /tmp/prefetch-ejs.sh
 RUN set -e; \
     mkdir -p /home/node/.cache/yt-dlp/ejs \
     && chown -R node:node /home/node/.cache \
     # -F only lists formats and does NOT trigger EJS module fetch.
     # Run an actual minimal download (`worst` ~1-2 MB) to force yt-dlp to
     # pull the JS challenge solver from GitHub. Discard the file after.
-    && su -s /bin/bash node -c "yt-dlp --remote-components ejs:github -f worst --no-warnings -o /tmp/__yt_probe.%(ext)s https://www.youtube.com/watch?v=jNQXAC9IVRw 2>&1 | tail -10 ; rm -f /tmp/__yt_probe.*" \
+    # Delegated to /tmp/prefetch-ejs.sh because embedding the full
+    # command line (with `%(ext)s`, `2>&1`, redirects) into a docker
+    # RUN `sh -c "…"` block eats the quotes / redirects in a way that's
+    # invisible from the build log.
+    && chmod +x /tmp/prefetch-ejs.sh \
+    && su -s /bin/bash node -c /tmp/prefetch-ejs.sh \
         || echo "EJS pre-cache: yt-dlp fetch failed (network) — runtime will retry" \
     && echo "=== EJS cache contents ===" \
     && ls -la /home/node/.cache/yt-dlp/ejs
