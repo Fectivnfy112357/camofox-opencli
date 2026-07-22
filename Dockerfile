@@ -203,14 +203,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # apt-installed version is older than 2026.x, pip-install the latest. Skipped
 # silently on networks without internet.
 RUN yt-dlp --version || true \
-    && pip3 install --break-system-packages --no-cache-dir -U "yt-dlp>=2026.7.0" 2>/dev/null || true \
+    && pip3 install --break-system-packages --no-cache-dir -U "yt-dlp>=2026.7.0" "yt-dlp-ejs" 2>/dev/null || true \
     && yt-dlp --version || true
 
 # deno: yt-dlp's EJS (External JavaScript Solver) for YouTube signature
 # extraction. Without a JS runtime yt-dlp falls back to "Some formats may be
 # missing" / "Requested format is not available" because YouTube's signature
 # derivation needs JS evaluation. deno is a single static binary distributed
-# on GitHub (no apt package in Debian bookworm).
+# on GitHub (no apt package in Debian bookworm). The `yt-dlp-ejs` Python
+# wheel (installed above) ships the pre-compiled solver modules so the
+# runtime container does NOT need network access at video_download time.
 RUN set -e; \
     apt-get install -y --no-install-recommends unzip 2>/dev/null \
     && curl -fsSL https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip -o /tmp/deno.zip \
@@ -219,28 +221,6 @@ RUN set -e; \
     && rm /tmp/deno.zip \
     && apt-get purge -y --auto-remove unzip 2>/dev/null \
     && /usr/local/bin/deno --version
-
-# Pre-fetch yt-dlp's EJS challenge solver scripts from GitHub so the runtime
-# container doesn't need network on first video_download. yt-dlp will look
-# these up under the node user's $HOME/.cache/yt-dlp/ejs on first use; seeding
-# them here avoids the "Remote components ... were skipped" warning and lets
-# YouTube downloads work without extra runtime flags.
-COPY scripts/build/prefetch-ejs.sh /tmp/prefetch-ejs.sh
-RUN set -e; \
-    mkdir -p /home/node/.cache/yt-dlp/ejs \
-    && chown -R node:node /home/node/.cache \
-    # -F only lists formats and does NOT trigger EJS module fetch.
-    # Run an actual minimal download (`worst` ~1-2 MB) to force yt-dlp to
-    # pull the JS challenge solver from GitHub. Discard the file after.
-    # Delegated to /tmp/prefetch-ejs.sh because embedding the full
-    # command line (with `%(ext)s`, `2>&1`, redirects) into a docker
-    # RUN `sh -c "…"` block eats the quotes / redirects in a way that's
-    # invisible from the build log.
-    && chmod +x /tmp/prefetch-ejs.sh \
-    && su -s /bin/bash node -c /tmp/prefetch-ejs.sh \
-        || echo "EJS pre-cache: yt-dlp fetch failed (network) — runtime will retry" \
-    && echo "=== EJS cache contents ===" \
-    && ls -la /home/node/.cache/yt-dlp/ejs
 
 # yt-dlp lives in the runtime layer — handy for transcript adapters and
 # already required by camofox-browser for YouTube extraction.

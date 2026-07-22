@@ -111,38 +111,21 @@ ENV http_proxy=${http_proxy} \
     no_proxy=localhost,127.0.0.1,.debian.org,pypi.org,files.pythonhosted.org,github.com \
     NO_PROXY=localhost,127.0.0.1,.debian.org,pypi.org,files.pythonhosted.org,github.com
 
-# Install latest yt-dlp via pip
-RUN pip3 install --break-system-packages --no-cache-dir -U "yt-dlp>=2026.7.0"
+# Install latest yt-dlp via pip, plus yt-dlp-ejs (the JS challenge solver
+# wheel published by the yt-dlp maintainers — bundled so the runtime
+# container never needs to talk to GitHub for EJS modules, even on
+# networks where youtube.com is blocked).
+RUN pip3 install --break-system-packages --no-cache-dir -U "yt-dlp>=2026.7.0" "yt-dlp-ejs"
 
-# Install deno for YouTube EJS challenge solving
+# Install deno for YouTube EJS challenge solving. The `yt-dlp-ejs` wheel
+# (installed above) ships the pre-compiled solver modules, so this is
+# only the JS runtime yt-dlp calls into — no GitHub fetch needed.
 RUN set -e; \
     curl -fsSL https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip -o /tmp/deno.zip \
     && unzip -q /tmp/deno.zip -d /usr/local/bin/ \
     && chmod +x /usr/local/bin/deno \
     && rm /tmp/deno.zip \
     && /usr/local/bin/deno --version
-
-# Pre-cache yt-dlp EJS challenge solver scripts so runtime never needs GitHub.
-# yt-dlp writes to ~/.cache/yt-dlp/ejs; /home/node/.cache is INSIDE the image
-# layer (not mounted), so the cache survives container restarts. The exec
-# is non-fatal on transient network errors but logs the output so a stale
-# cache is visible in the CI log instead of failing the build.
-COPY scripts/build/prefetch-ejs.sh /tmp/prefetch-ejs.sh
-RUN set -e; \
-    mkdir -p /home/node/.cache/yt-dlp/ejs \
-    && chown -R node:node /home/node/.cache \
-    # -F only lists formats and does NOT trigger EJS module fetch.
-    # Run an actual minimal download (`worst` ~1-2 MB) to force yt-dlp to
-    # pull the JS challenge solver from GitHub. Discard the file after.
-    # Delegated to /tmp/prefetch-ejs.sh because embedding the full
-    # command line (with `%(ext)s`, `2>&1`, redirects) into a docker
-    # RUN `sh -c "…"` block eats the quotes / redirects in a way that's
-    # invisible from the build log (we hit that on v0.2.3 / v0.2.4).
-    && chmod +x /tmp/prefetch-ejs.sh \
-    && su -s /bin/bash node -c /tmp/prefetch-ejs.sh \
-        || echo "EJS pre-cache: yt-dlp fetch failed (network) — runtime will retry" \
-    && echo "=== EJS cache contents ===" \
-    && ls -la /home/node/.cache/yt-dlp/ejs
 
 # noVNC static client
 RUN curl -fsSL https://codeload.github.com/novnc/noVNC/tar.gz/refs/heads/master -o /tmp/novnc.tgz \
