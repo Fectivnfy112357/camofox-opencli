@@ -105,11 +105,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         fonts-noto fonts-noto-color-emoji fontconfig \
     && rm -rf /var/lib/apt/lists/*
 
-# Proxy configuration matches local Dockerfile for GitHub Actions build
-ENV http_proxy=http://host.docker.internal:20172 \
-    https_proxy=http://host.docker.internal:20172 \
-    no_proxy=localhost,127.0.0.1,.debian.org \
-    NO_PROXY=localhost,127.0.0.1,.debian.org
+# Proxy configuration matches local Dockerfile for GitHub Actions build.
+# GitHub Actions runners have NO host.docker.internal — pip/curl will try
+# to use the proxy and fail with "Cannot connect to proxy". We only set
+# these as ARG so the build can override; default to no proxy so the
+# runner can reach PyPI / GitHub directly.
+ARG http_proxy=
+ARG https_proxy=
+ENV http_proxy=${http_proxy} \
+    https_proxy=${https_proxy} \
+    no_proxy=localhost,127.0.0.1,.debian.org,pypi.org,files.pythonhosted.org,github.com \
+    NO_PROXY=localhost,127.0.0.1,.debian.org,pypi.org,files.pythonhosted.org,github.com
 
 # Install latest yt-dlp via pip
 RUN pip3 install --break-system-packages --no-cache-dir -U "yt-dlp>=2026.7.0"
