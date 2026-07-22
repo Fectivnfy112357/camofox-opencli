@@ -3,6 +3,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # Build with the host network stack. The default `bridge` network on
+      # this host throttles apt/curl/npm downloads to ~30 KB/s (verified by
+      # running an alpine container under each network); `--network=host`
+      # bypasses that and restores the host's full 4 MB/s. Has no effect on
+      # the resulting image — only on what the build containers can reach.
+      network: host
       # Two sibling source trees live next to this compose file on the host:
       #   ../camofox-browser   (the camofox-browser fork)
       #   ../opencli           (the OpenCLI fork)
