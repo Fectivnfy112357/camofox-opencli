@@ -42,12 +42,20 @@ function hostMatches(cookieDomain: string, targetHost: string): boolean {
 }
 
 function toNetscapeLine(c: CamofoxCookie): string {
-  const domain = c.domain.startsWith('.') ? c.domain : `.${c.domain}`;
+  const clean = (s: string): string => s.replace(/[\t\n\r]/g, ' ');
+  let domain = clean(c.domain);
+  let domainSpecified = domain.startsWith('.');
+  if (!domainSpecified) {
+    domain = `.${domain}`;
+    domainSpecified = true;
+  }
   const httpOnly = c.httpOnly ? 'TRUE' : 'FALSE';
   const secure = c.secure ? 'TRUE' : 'FALSE';
-  const cookiePath = c.path ?? '/';
+  const cookiePath = clean(c.path ?? '/');
   const expires = c.expires && c.expires > 0 ? Math.floor(c.expires) : 0;
-  return [domain, httpOnly, secure, cookiePath, expires, c.name, c.value].join('\t');
+  const name = clean(c.name);
+  const value = clean(c.value);
+  return [domain, domainSpecified ? 'TRUE' : 'FALSE', secure, cookiePath, expires, name, value].join('\t');
 }
 
 export async function exportCookiesForHost(
