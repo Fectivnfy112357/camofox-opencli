@@ -47,9 +47,9 @@ describe('searchVideos', () => {
       return { ok: true, exitCode: 0, stdout: JSON.stringify([{ id: 'X', title: 't', url: 'u' }]), stderr: '' };
     });
     const res = await searchVideos({ query: 'x' }, { runOpencli });
-    expect(res.results).toHaveLength(2); // bilibili + douyin each contribute 1 row
+    expect(res.results).toHaveLength(2); // bilibili + tiktok each contribute 1 row
     expect(res.stats.failed).toEqual([{ platform: 'youtube', error: 'AUTH_REQUIRED' }]);
-    expect(res.stats.succeeded).toEqual(['bilibili', 'douyin']);
+    expect(res.stats.succeeded).toEqual(['bilibili', 'tiktok']);
   });
 
   it('clamps limit to [1, 30] with default 10', async () => {

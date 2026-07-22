@@ -354,7 +354,7 @@ export function createMcpServer(deps: Deps, ctx: ServerCtx = { clientHost: null 
   const video = getVideoSubsystem(deps);
   server.registerTool('video_search',
     {
-      description: 'Search videos across supported platforms. Default platforms (when platform is omitted): bilibili, youtube, douyin. Pass platform="all" to search all 8 supported sites (bilibili, youtube, douyin, tiktok, instagram, xiaohongshu, weibo, twitter). Up to 3 sites are queried in parallel; per-site failures are returned in stats.failed without aborting the whole request.',
+      description: 'Search videos across supported platforms. Default platforms (when platform is omitted): bilibili, youtube, tiktok. Pass platform="all" to search all 8 supported sites (bilibili, youtube, douyin, tiktok, instagram, xiaohongshu, weibo, twitter). Up to 3 sites are queried in parallel; per-site failures are returned in stats.failed without aborting the whole request.',
       inputSchema: {
         query: z.string().min(1).describe('Search keywords (non-empty)'),
         platform: z.string().optional().describe('Site name (bilibili|youtube|douyin|tiktok|instagram|xiaohongshu|weibo|twitter), "all", or omit for the default 3 sites'),

@@ -14,8 +14,8 @@ describe('video-types', () => {
     );
   });
 
-  it('DEFAULT_PLATFORMS is bilibili, youtube, douyin', () => {
-    expect(DEFAULT_PLATFORMS).toEqual(['bilibili', 'youtube', 'douyin']);
+  it('DEFAULT_PLATFORMS is bilibili, youtube, tiktok', () => {
+    expect(DEFAULT_PLATFORMS).toEqual(['bilibili', 'youtube', 'tiktok']);
   });
 
   it('isVideoSite returns true for known sites and false for unknown', () => {

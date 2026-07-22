@@ -5,7 +5,7 @@ export const VIDEO_SITES = [
 
 export type VideoSite = typeof VIDEO_SITES[number];
 
-export const DEFAULT_PLATFORMS: readonly VideoSite[] = ['bilibili', 'youtube', 'douyin'];
+export const DEFAULT_PLATFORMS: readonly VideoSite[] = ['bilibili', 'youtube', 'tiktok'];
 
 export const ALL_PLATFORMS = 'all' as const;
 
