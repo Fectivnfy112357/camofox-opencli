@@ -193,9 +193,12 @@ RUN set -e \
 # launch (XPCOMGlueLoad libmozgtk.so, etc.) and were lost when we split
 # build vs. runtime stages — they must be reinstalled here, not just in
 # the cb-build stage.
+# ffmpeg: required by yt-dlp to remux HLS / m3u8 streams (live broadcasts,
+# dash-to-mp4). Without it yt-dlp returns "m3u8 download detected but
+# ffmpeg could not be found" and the gateway surfaces YT_DLP_FAILED.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         xvfb x11vnc python3-websockify curl ca-certificates \
-        supervisor git yt-dlp python3-pip \
+        supervisor git yt-dlp python3-pip ffmpeg \
         libgtk-3-0 libdbus-glib-1-2 libxt6 libx11-xcb1 \
         libasound2 libdrm2 libgbm1 libxcomposite1 libxcursor1 \
         libxdamage1 libxfixes3 libxi6 libxrandr2 libxrender1 \
