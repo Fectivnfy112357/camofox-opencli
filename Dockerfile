@@ -55,15 +55,7 @@ RUN set -e \
 # + python3 are present so npm postinstall can compile better-sqlite3's native
 # binding (without them camoufox fails with "Could not locate the bindings
 # file" when launching any persistent browser context).
-#
-# --mount=type=cache persists /var/cache/apt and /var/lib/apt across
-# rebuilds. A single package install in cb-build pulls ~30 debs and
-# takes 3+ minutes from the v2raya proxy; with this cache the second
-# build is sub-second. Cache is host-local (in BuildKit's cache dir),
-# no daemon.json changes, no host network pollution.
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
         xvfb x11vnc python3-websockify python3 make g++ \
         libgtk-3-0 libdbus-glib-1-2 libxt6 libx11-xcb1 \
         libasound2 libdrm2 libgbm1 libxcomposite1 libxcursor1 \
@@ -201,13 +193,7 @@ RUN set -e \
 # launch (XPCOMGlueLoad libmozgtk.so, etc.) and were lost when we split
 # build vs. runtime stages — they must be reinstalled here, not just in
 # the cb-build stage.
-#
-# Cache mount persists /var/cache/apt across builds (see cb-build comment).
-# Runtime installs ~25 debs and takes 3+ min from v2raya; second build
-# is sub-second.
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
         xvfb x11vnc python3-websockify curl ca-certificates \
         supervisor git yt-dlp python3-pip \
         libgtk-3-0 libdbus-glib-1-2 libxt6 libx11-xcb1 \
@@ -216,7 +202,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         libxss1 libxtst6 libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 \
         libcups2 libpango-1.0-0 libpangocairo-1.0-0 libxkbcommon0 \
         libxshmfence1 fonts-freefont-ttf fonts-liberation \
-        fonts-noto fonts-noto-color-emoji fontconfig
+        fonts-noto fonts-noto-color-emoji fontconfig \
+    && rm -rf /var/lib/apt/lists/*
 
 # Some upstream yt-dlp packages lag behind YouTube's JS challenges; if the
 # apt-installed version is older than 2026.x, pip-install the latest. Skipped
