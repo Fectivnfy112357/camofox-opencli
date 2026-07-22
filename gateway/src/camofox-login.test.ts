@@ -6,6 +6,7 @@ const cfg: Config = {
   port: 8080, apiKey: null, opencliBin: 'opencli', manifestPath: '/x',
   camofoxUrl: 'http://textvision.top:9377', camofoxApiKey: 'k', camofoxUserId: 'u',
   publicVncHost: 'textvision.top',
+  tmpDir: '/tmp', logDir: '/tmp', logLevel: 'info',
 };
 
 function json(body: unknown) {

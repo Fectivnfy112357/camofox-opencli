@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { IncomingMessage } from 'node:http';
-import { exec as execCb } from 'node:child_process';
+import { execFile as execCb } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { Deps } from './rest.js';
 import type { Manifest } from './manifest.js';

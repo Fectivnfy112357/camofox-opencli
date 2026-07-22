@@ -51,9 +51,13 @@ async function searchOneSite(
 }
 
 function mapRow(site: VideoSite, row: any): VideoSearchResult | null {
-  const id = String(row.id ?? row.bvid ?? row.video_id ?? row.aweme_id ?? row.shortcode ?? '');
+  // opencli adapters expose varying column shapes (id/bvid/aweme_id vs. plain rank).
+  // Fall back through every plausible id column, then use `rank` as a last resort
+  // so the result row can still be linked back to its source list.
+  const idRaw = row.id ?? row.bvid ?? row.video_id ?? row.aweme_id ?? row.shortcode ?? row.rank;
+  const id = idRaw != null ? String(idRaw) : '';
   const title = String(row.title ?? row.desc ?? row.name ?? '');
-  const url = String(row.url ?? row.video_url ?? canonicalUrl(site, id));
+  const url = String(row.url ?? row.video_url ?? (id ? canonicalUrl(site, id) : ''));
   if (!id || !title || !url) return null;
   return {
     platform: site,
@@ -62,7 +66,15 @@ function mapRow(site: VideoSite, row: any): VideoSearchResult | null {
     url,
     author: row.author ?? row.user ?? row.nickname,
     duration: row.duration,
-    views: typeof row.views === 'number' ? row.views : row.view_count ?? row.play_count,
+    // `score` is the universal rank/heat column across adapters; `views/play_count/view_count`
+    // are the optional numeric view-count columns some adapters populate.
+    views: typeof row.views === 'number'
+      ? row.views
+      : typeof row.plays === 'number'
+        ? row.plays
+        : typeof row.score === 'number'
+          ? row.score
+          : row.view_count ?? row.play_count,
     thumbnail: row.thumbnail ?? row.cover ?? row.pic,
   };
 }

@@ -18,8 +18,7 @@ log.info('search_cache.ready', { sites: searchCacheSize() });
 
 // Singleton TempStore for video download temp files. 1-hour TTL; sweep every
 // 10 minutes (and once at boot to clean any leftovers from previous runs).
-const tmpDir = process.env.GATEWAY_TMP_DIR ?? './tmp';
-const tempStore = new TempStore({ tmpDir, ttlMs: 60 * 60 * 1000 });
+const tempStore = new TempStore({ tmpDir: cfg.tmpDir, ttlMs: 60 * 60 * 1000 });
 void tempStore.sweep();
 setInterval(() => { void tempStore.sweep(); }, 10 * 60 * 1000).unref();
 
