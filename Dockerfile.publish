@@ -140,6 +140,10 @@ COPY --from=cb-build /home/node/.cache/camoufox/ /home/node/.cache/camoufox/
 COPY --from=oc-build /build/        /opt/opencli/
 COPY --from=sg-build /build/dist/shim/      /opt/shim/
 COPY --from=sg-build /build/dist/gateway/   /opt/gateway/
+COPY --from=sg-build /build/package.json    /opt/shim/package.json
+COPY --from=sg-build /build/package.json    /opt/gateway/package.json
+COPY --from=sg-build /build/package-lock.json /opt/shim/package-lock.json
+COPY --from=sg-build /build/package-lock.json /opt/gateway/package-lock.json
 
 RUN cd /opt/shim && npm install --omit=dev --no-audit --no-fund \
  && rm -rf node_modules/.cache
