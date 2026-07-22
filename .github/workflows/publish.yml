@@ -95,6 +95,7 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.VERSION }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.SHORT_SHA }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_NAME }}:latest
           labels: |
             org.opencontainers.image.title=camofox-opencli
             org.opencontainers.image.description=Cloud OpenCLI with anti-detection Camofox browser + 163+ site adapters + MCP gateway
