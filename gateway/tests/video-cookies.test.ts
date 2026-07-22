@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { exportCookiesForHost } from './video-cookies.js';
+import { exportCookiesForHost } from '../src/video/video-cookies.js';
 
 describe('exportCookiesForHost', () => {
   let tmpDir: string;

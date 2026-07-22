@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import * as searchCache from './search-cache.js';
-import { type Manifest, type CmdRecord } from './manifest.js';
-import { buildArgs } from './opencli.js';
+import * as searchCache from '../src/search-cache.js';
+import { type Manifest, type CmdRecord } from '../src/manifest.js';
+import { buildArgs } from '../src/opencli.js';
 
 function makeRecord(args: CmdArg[]): CmdRecord {
   return { site: 'test', name: 'search', description: '', args };

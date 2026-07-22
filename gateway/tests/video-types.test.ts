@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { VIDEO_SITES, DEFAULT_PLATFORMS, isVideoSite, ALL_PLATFORMS } from './video-types.js';
+import { VIDEO_SITES, DEFAULT_PLATFORMS, isVideoSite, ALL_PLATFORMS } from '../src/video/video-types.js';
 
 describe('video-types', () => {
   it('VIDEO_SITES has exactly 8 entries', () => {

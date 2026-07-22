@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { rewriteVncHost, getVncUrl } from './camofox-login.js';
-import type { Config } from './config.js';
+import { rewriteVncHost, getVncUrl } from '../src/camofox-login.js';
+import type { Config } from '../src/config.js';
 
 const cfg: Config = {
   port: 8080, apiKey: null, opencliBin: 'opencli', manifestPath: '/x',

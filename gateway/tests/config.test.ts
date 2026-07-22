@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { loadConfig } from './config.js';
+import { loadConfig } from '../src/config.js';
 
 describe('loadConfig', () => {
   it('applies defaults when env is empty', () => {

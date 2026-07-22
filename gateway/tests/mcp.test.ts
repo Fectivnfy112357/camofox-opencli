@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { PRIMARY_SITES, buildSiteToolDescription, createMcpServer } from './mcp.js';
-import { loadManifest } from './manifest.js';
-import { type RunResult } from './opencli.js';
-import * as searchCache from './search-cache.js';
+import { PRIMARY_SITES, buildSiteToolDescription, createMcpServer } from '../src/mcp.js';
+import { loadManifest } from '../src/manifest.js';
+import { type RunResult } from '../src/opencli.js';
+import * as searchCache from '../src/search-cache.js';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 

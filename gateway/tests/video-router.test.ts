@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { searchVideos } from './video-router.js';
-import { VIDEO_SITES, DEFAULT_PLATFORMS } from './video-types.js';
+import { searchVideos } from '../src/video/video-router.js';
+import { VIDEO_SITES, DEFAULT_PLATFORMS } from '../src/video/video-types.js';
 
 describe('searchVideos', () => {
   it('rejects empty query', async () => {

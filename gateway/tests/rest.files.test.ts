@@ -3,10 +3,10 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { Writable } from 'node:stream';
-import { createRestHandler } from './rest.js';
-import { TempStore } from './video/temp-store.js';
-import type { Config } from './config.js';
-import type { Manifest } from './manifest.js';
+import { createRestHandler } from '../src/rest.js';
+import { TempStore } from '../src/video/temp-store.js';
+import type { Config } from '../src/config.js';
+import type { Manifest } from '../src/manifest.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 describe('GET /files/:id', () => {

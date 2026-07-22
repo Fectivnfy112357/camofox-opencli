@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { IncomingMessage } from 'node:http';
-import { buildAbsoluteUrl } from './url-builder.js';
+import { buildAbsoluteUrl } from '../src/video/url-builder.js';
 
 function mockReq(headers: Record<string, string | undefined>): IncomingMessage {
   return { headers } as unknown as IncomingMessage;

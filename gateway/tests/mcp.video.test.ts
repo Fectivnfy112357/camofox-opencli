@@ -2,11 +2,11 @@ import { describe, it, expect, vi } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { createMcpServer } from './mcp.js';
-import type { Deps } from './rest.js';
-import type { Manifest } from './manifest.js';
-import type { Config } from './config.js';
-import { TempStore } from './video/temp-store.js';
+import { createMcpServer } from '../src/mcp.js';
+import type { Deps } from '../src/rest.js';
+import type { Manifest } from '../src/manifest.js';
+import type { Config } from '../src/config.js';
+import { TempStore } from '../src/video/temp-store.js';
 
 function makeDeps(tmpDir: string): Deps {
   const manifest: Manifest = {

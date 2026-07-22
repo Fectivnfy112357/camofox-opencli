@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { TempStore } from './temp-store.js';
+import { TempStore } from '../src/video/temp-store.js';
 
 describe('TempStore', () => {
   let dir: string;

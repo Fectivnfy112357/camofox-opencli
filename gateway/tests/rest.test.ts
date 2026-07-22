@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createRestHandler } from './rest.js';
-import { loadManifest } from './manifest.js';
+import { createRestHandler } from '../src/rest.js';
+import { loadManifest } from '../src/manifest.js';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import type { Config } from './config.js';
+import type { Config } from '../src/config.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const manifest = loadManifest(join(here, '__fixtures__', 'manifest.sample.json'));

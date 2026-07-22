@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { loadManifest } from './manifest.js';
+import { loadManifest } from '../src/manifest.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixture = join(here, '__fixtures__', 'manifest.sample.json');

@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { DownloadPool } from './download-pool.js';
-import { TempStore } from './temp-store.js';
+import { DownloadPool } from '../src/video/download-pool.js';
+import { TempStore } from '../src/video/temp-store.js';
 
 describe('DownloadPool', () => {
   let tmpDir: string;

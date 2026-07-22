@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildArgs, buildRawArgs, parseResult } from './opencli.js';
-import type { CmdRecord } from './manifest.js';
+import { buildArgs, buildRawArgs, parseResult } from '../src/opencli.js';
+import type { CmdRecord } from '../src/manifest.js';
 
 const search: CmdRecord = {
   site: 'bilibili', name: 'search', description: '', access: 'read',

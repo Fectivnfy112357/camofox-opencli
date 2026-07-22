@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Semaphore } from './semaphore.js';
+import { Semaphore } from '../src/video/semaphore.js';
 
 describe('Semaphore', () => {
   it('permits up to N concurrent acquisitions', async () => {
