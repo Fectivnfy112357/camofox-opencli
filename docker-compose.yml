@@ -14,6 +14,12 @@ services:
         # siblings happen to live elsewhere.
         camofox-browser: ${CAMOFOX_BROWSER_DIR:-./camofox-browser}
         opencli:         ${OPENCLI_DIR:-./opencli}
+      # The Dockerfile sets http_proxy=http://host.docker.internal:20172 so
+      # build-stage apt/curl/npm go through the host's v2raya. Build
+      # containers need their own extra_hosts mapping (the one in the
+      # service block below only applies to the runtime container).
+      extra_hosts:
+        - "host.docker.internal:host-gateway"
     container_name: camofox
     restart: unless-stopped
 

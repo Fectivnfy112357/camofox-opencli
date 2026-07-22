@@ -26,6 +26,20 @@ FROM node:22-slim AS cb-build
 # over IPv4). One line, no daemon changes, persists in the image.
 RUN echo 'precedence ::ffff:0:0/96  100' >> /etc/gai.conf
 
+# Route build-stage HTTP traffic through the host's v2raya proxy. The Docker
+# daemon's `proxies.http-proxy` only affects `docker pull` — it is NOT
+# inherited by the build containers' RUN steps. Setting these here makes
+# apt/curl/npm use the proxy explicitly. no_*.debian.org is whitelisted
+# (bypassed) so the cache, lists, and GPG keys resolve directly via the
+# local bridge — saving the proxy from a few hundred small requests.
+ENV http_proxy=http://host.docker.internal:20172 \
+    https_proxy=http://host.docker.internal:20172 \
+    ftp_proxy=http://host.docker.internal:20172 \
+    HTTP_PROXY=http://host.docker.internal:20172 \
+    HTTPS_PROXY=http://host.docker.internal:20172 \
+    no_proxy=localhost,127.0.0.1,.debian.org,.docker.com,.docker.io \
+    NO_PROXY=localhost,127.0.0.1,.debian.org,.docker.com,.docker.io
+
 # Pin Debian apt sources to cdn-fastly.deb.debian.org (Fastly CDN cache hit,
 # observed < 100ms on the build host). node:22-slim's default
 # /etc/apt/sources.list.d/debian.sources uses deb.debian.org, whose SRV-based
@@ -156,6 +170,17 @@ FROM node:22-slim AS runtime
 # Force IPv4-first DNS resolution. See cb-build comment — same root cause
 # (v2raya IPv4-only proxy vs IPv6-preferring glibc), affects apt + curl + npm.
 RUN echo 'precedence ::ffff:0:0/96  100' >> /etc/gai.conf
+
+# Route build-stage HTTP traffic through the host's v2raya proxy. See
+# cb-build comment — daemon-level proxies are not inherited by build
+# containers, so we re-declare here. Runtime containers also use these when
+# they need to reach external HTTP endpoints at build time.
+ENV http_proxy=http://host.docker.internal:20172 \
+    https_proxy=http://host.docker.internal:20172 \
+    HTTP_PROXY=http://host.docker.internal:20172 \
+    HTTPS_PROXY=http://host.docker.internal:20172 \
+    no_proxy=localhost,127.0.0.1,.debian.org \
+    NO_PROXY=localhost,127.0.0.1,.debian.org
 
 # Pin Debian apt sources to cdn-fastly.deb.debian.org (see cb-build comment
 # above for why — avoids the same DNS-SRV-induced apt-get hang).
