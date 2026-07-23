@@ -6,6 +6,8 @@ import type { Manifest } from '../core/manifest.js';
 import { buildArgs, buildRawArgs, PASSTHROUGH_SITES, type RunResult } from '../core/opencli.js';
 import { log } from '../core/logger.js';
 import type { TempStore } from '../video/temp-store.js';
+import { runVideoSearch, runVideoDownload } from '../video/video-handlers.js';
+import type { VideoSubsystem } from '../mcp/mcp.js';
 
 export interface Deps {
   cfg: Config;
@@ -52,7 +54,14 @@ function mimeFor(filename: string): string {
   return 'application/octet-stream';
 }
 
-export function createRestHandler(deps: Deps) {
+export function createRestHandler(
+  deps: Deps,
+  video?: {
+    search: typeof import('../video/video-handlers.js').runVideoSearch;
+    download: typeof import('../video/video-handlers.js').runVideoDownload;
+    subsystem: import('../mcp/mcp.js').VideoSubsystem;
+  },
+) {
   const { cfg, manifest } = deps;
   return async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = new URL(req.url ?? '/', 'http://localhost');
@@ -142,6 +151,57 @@ export function createRestHandler(deps: Deps) {
         const b = await readBody(req);
         const vncUrl = await deps.vnc({ url: b.url, clientHost: extractHost(req) ?? undefined });
         return ok(res, { vncUrl });
+      }
+      if (method === 'POST' && path === '/video/search') {
+        if (!video) return err(res, 503, 'unavailable', 'video subsystem not configured');
+        const b = await readBody(req);
+        const { query, platform, limit } = b ?? {};
+        if (typeof query !== 'string' || !query.trim()) {
+          return err(res, 400, 'bad_args', 'query is required');
+        }
+        if (limit !== undefined && (typeof limit !== 'number' || limit < 1 || limit > 30)) {
+          return err(res, 400, 'bad_args', 'limit must be 1..30');
+        }
+        if (platform !== undefined && platform !== 'all' && !/^(bilibili|youtube|douyin|tiktok|instagram|xiaohongshu|weibo|twitter)$/.test(platform)) {
+          return err(res, 400, 'INVALID_PLATFORM', `unknown platform: ${platform}`);
+        }
+        try {
+          const data = await runVideoSearch(
+            { query, platform, limit },
+            { deps, video: video.subsystem, req, clientHost: extractHost(req) },
+          );
+          return ok(res, data);
+        } catch (e) {
+          const code = (e as { code?: string })?.code ?? 'EMPTY_QUERY';
+          if (code === 'INVALID_PLATFORM') return err(res, 400, code, (e as Error).message);
+          if (code === 'EMPTY_QUERY') return err(res, 400, code, (e as Error).message);
+          log.error('rest.video.search.error', { message: (e as Error).message });
+          return err(res, 500, 'internal', (e as Error).message);
+        }
+      }
+      if (method === 'POST' && path === '/video/download') {
+        if (!video) return err(res, 503, 'unavailable', 'video subsystem not configured');
+        const b = await readBody(req);
+        const { urls, quality } = b ?? {};
+        if (!Array.isArray(urls) || urls.length < 1 || urls.length > 3) {
+          return err(res, 400, 'bad_args', 'urls must be an array of 1..3 items');
+        }
+        if (!urls.every((u: unknown) => typeof u === 'string' && /^https?:\/\//.test(u))) {
+          return err(res, 400, 'bad_args', 'every url must be http(s)');
+        }
+        if (quality !== undefined && !['best', '1080p', '720p', '480p', 'worst'].includes(quality)) {
+          return err(res, 400, 'bad_args', `unknown quality: ${quality}`);
+        }
+        try {
+          const data = await runVideoDownload(
+            { urls, quality },
+            { deps, video: video.subsystem, req, clientHost: extractHost(req) },
+          );
+          return ok(res, data);
+        } catch (e) {
+          log.error('rest.video.download.error', { message: (e as Error).message });
+          return err(res, 500, 'internal', (e as Error).message);
+        }
       }
       return err(res, 404, 'not_found', `no route: ${method} ${path}`);
     } catch (e) {
