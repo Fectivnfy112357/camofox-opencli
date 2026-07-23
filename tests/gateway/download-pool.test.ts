@@ -68,6 +68,21 @@ describe('DownloadPool', () => {
     expect(execFn).toHaveBeenCalledTimes(1);
   });
 
+  it('routes Douyin hosts to the browser downloader when configured', async () => {
+    const douyinDownloader = { download: vi.fn().mockResolvedValue({
+      url: 'https://www.douyin.com/video/1', ok: true, method: 'camofox',
+      filename: 'video.mp4', size_bytes: 1, download_url: '/files/1.mp4', expires_at: '2099-01-01T00:00:00.000Z',
+    }) };
+    const pool = new DownloadPool({
+      cookieDir: tmpDir, outputDir: tmpDir, tempStore: store, workerCount: 3,
+      fetchCamofoxCookies, exec, douyinDownloader,
+    });
+    const result = await pool.downloadOne('https://www.douyin.com/video/1', 'best');
+    expect(result.ok).toBe(true);
+    expect(douyinDownloader.download).toHaveBeenCalledWith('https://www.douyin.com/video/1');
+    expect(exec).not.toHaveBeenCalled();
+  });
+
   it('returns YT_DLP_FAILED when yt-dlp exits non-zero', async () => {
     const execFn = vi.fn().mockResolvedValue({ exitCode: 1, stdout: '', stderr: '403 forbidden' });
     const pool = new DownloadPool({

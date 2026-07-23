@@ -9,7 +9,8 @@ import { buildArgs, PASSTHROUGH_SITES, type RunResult } from '../core/opencli.js
 import { log } from '../core/logger.js';
 import * as searchCache from '../core/search-cache.js';
 import { searchVideos, type RouterDeps } from '../video/video-router.js';
-import { DownloadPool, type RunResultLike } from '../video/download-pool.js';
+import { DownloadPool, type ExecFn, type RunResultLike } from '../video/download-pool.js';
+import { DouyinBrowserDownloader } from '../video/douyin-browser-downloader.js';
 import { TempStore } from '../video/temp-store.js';
 import { buildAbsoluteUrl } from '../video/url-builder.js';
 import type { CamofoxCookie } from '../video/video-cookies.js';
@@ -278,6 +279,25 @@ function getVideoSubsystem(deps: Deps): VideoSubsystem {
     await res.text().catch(() => undefined);
   };
 
+  const exec: ExecFn = async (cmd, args, opts) => {
+    try {
+      const { stdout, stderr } = await execAsync(cmd, args, opts ?? {});
+      return { ok: true, exitCode: 0, stdout, stderr };
+    } catch (err: unknown) {
+      const e = err as { stdout?: string; stderr?: string; code?: number };
+      return { ok: false, exitCode: e.code ?? 1, stdout: e.stdout ?? '', stderr: e.stderr ?? String(err) };
+    }
+  };
+  const douyinDownloader = new DouyinBrowserDownloader({
+    baseUrl: camofoxBase,
+    apiKey: camofoxKey,
+    userId,
+    outputDir: deps.cfg.outputDir,
+    tempStore,
+    proxyUrl,
+    exec,
+  });
+
   const pool = new DownloadPool({
     cookieDir: deps.cfg.cookieDir,
     outputDir: deps.cfg.outputDir,
@@ -285,17 +305,10 @@ function getVideoSubsystem(deps: Deps): VideoSubsystem {
     workerCount: 3,
     fetchCamofoxCookies: fetchCookies,
     wakeBrowser: (uid: string) => wakeBrowser(uid),
-    exec: async (cmd, args, opts) => {
-      try {
-        const { stdout, stderr } = await execAsync(cmd, args, opts ?? {});
-        return { ok: true, exitCode: 0, stdout, stderr };
-      } catch (err: unknown) {
-        const e = err as { stdout?: string; stderr?: string; code?: number };
-        return { ok: false, exitCode: e.code ?? 1, stdout: e.stdout ?? '', stderr: e.stderr ?? String(err) };
-      }
-    },
+    exec,
     userId,
     proxyUrl,
+    douyinDownloader,
   });
 
   _video = { pool, fetchCookies };
@@ -394,12 +407,12 @@ export function createMcpServer(deps: Deps, ctx: ServerCtx = { clientHost: null 
 
   // video_download: download 1-3 URLs to a temp file inside the container.
   // Returns a temporary HTTPS URL the client can GET to fetch the bytes
-  // (1-hour TTL, see GET /files/:id route). Bilibili and Instagram route
-  // through opencli's native download; every other platform falls back to
-  // yt-dlp with Camofox cookies injected.
+  // (1-hour TTL, see GET /files/:id route). Douyin resolves its signed media
+  // URL in Camofox first, then downloads it with curl through the configured
+  // proxy. Other platforms use yt-dlp with Camofox cookies injected.
   server.registerTool('video_download',
     {
-      description: 'Download 1-3 video URLs to a temp file inside the container. Returns a temporary HTTPS URL the client can GET to fetch the bytes. Files are deleted after 1 hour. Bilibili and Instagram use OpenCLI native download; all other platforms use yt-dlp with Camofox cookies injected automatically.',
+      description: 'Download 1-3 video URLs to a temp file inside the container. Returns a temporary HTTPS URL the client can GET to fetch the bytes. Files are deleted after 1 hour. Douyin URLs resolve media in Camofox and download through the configured proxy; other platforms use yt-dlp with Camofox cookies injected automatically.',
       inputSchema: {
         urls: z.array(z.string().url()).min(1).max(3).describe('1-3 video URLs to download in parallel'),
         quality: z.enum(['best', '1080p', '720p', '480p', 'worst']).optional().describe('Video quality (default best)'),

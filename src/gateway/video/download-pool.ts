@@ -42,6 +42,7 @@ export interface DownloadPoolOptions {
    *  `--proxy <url>` so video downloads exit via v2raya instead of the
    *  bare container IP. */
   proxyUrl?: string | null;
+  douyinDownloader?: { download(url: string): Promise<VideoDownloadResult> };
 }
 
 export class DownloadPool {
@@ -70,7 +71,12 @@ export class DownloadPool {
     if (!['http:', 'https:'].includes(url.protocol)) {
       return { url: rawUrl, ok: false, error_code: 'INVALID_URL', error_message: `Unsupported protocol: ${url.protocol}` };
     }
-    return this.sem.serialize(() => this.runYtdlp(rawUrl, url.hostname, quality));
+    return this.sem.serialize(() => {
+      if (url.hostname === 'douyin.com' || url.hostname.endsWith('.douyin.com')) {
+        return this.opts.douyinDownloader?.download(rawUrl) ?? this.runYtdlp(rawUrl, url.hostname, quality);
+      }
+      return this.runYtdlp(rawUrl, url.hostname, quality);
+    });
   }
 
   // Single download path: yt-dlp with Camofox cookies injected.

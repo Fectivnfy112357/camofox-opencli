@@ -25,7 +25,8 @@ export type ErrorCode =
   | 'PAID_CONTENT'
   | 'RATE_LIMITED'
   | 'WORKER_TIMEOUT'
-  | 'DISK_FULL';
+  | 'DISK_FULL'
+  | 'CAMOFOX_DOWNLOAD_FAILED';
 
 export interface VideoSearchResult {
   platform: VideoSite;
@@ -50,7 +51,7 @@ export interface VideoSearchResponse {
 export interface VideoDownloadSuccess {
   url: string;
   ok: true;
-  method: 'native' | 'ytdlp';
+  method: 'native' | 'ytdlp' | 'camofox';
   filename: string;
   size_bytes: number;
   download_url: string;
