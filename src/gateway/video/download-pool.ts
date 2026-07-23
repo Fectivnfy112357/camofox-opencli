@@ -46,12 +46,17 @@ export interface DownloadPoolOptions {
    *  `--proxy <url>` so video downloads exit via v2raya instead of the
    *  bare container IP. */
   proxyUrl?: string | null;
-  /** When true, yt-dlp receives `--verbose` so its per-request network
-   *  errors (cert verify failures, connection reset codes, fragment-
-   *  level retries, SABR/PO token warnings, etc.) appear in stderr.
-   *  Disabled by default because verbose output is noisy; enable when
-   *  diagnosing intermittent failures by setting YTDLP_VERBOSE=1 on the
-   *  gateway process. */
+  /** When true (the default), yt-dlp receives `--verbose` so its
+   *  per-request network errors (cert verify failures, connection
+   *  reset codes, fragment-level retries, SABR/PO token warnings,
+   *  etc.) appear in stderr. Verbose output adds ~1-5KB per run;
+   *  the per-run log entry already carries stderr_bytes so the
+   *  line is recoverable either way. Disable by setting
+   *  YTDLP_VERBOSE=0 on the gateway process if disk pressure
+   *  becomes a concern — keeping it on by default is intentional
+   *  so intermittent YouTube SABR/PO-token failures leave enough
+   *  evidence to root-cause from /var/log/gateway/ytdlp-runs.log
+   *  alone. */
   verbose?: boolean;
   douyinDownloader?: { download(url: string): Promise<VideoDownloadResult> };
 }
@@ -207,11 +212,10 @@ export class DownloadPool {
       '--no-playlist',
       '--newline',
       '--no-progress',
-      // --verbose is gated on opts.verbose so we can flip it per-deploy
-      // without rebuilding the image. Verbose output adds ~1-5KB per
-      // run; the per-run log entry already carries stderr_bytes so the
-      // line is recoverable even without `--verbose`.
-      ...(this.opts.verbose ? ['--verbose'] : []),
+      // --verbose is on by default so per-retry network errors land in
+      // stderr. Disable per-deploy by exporting YTDLP_VERBOSE=0 on
+      // the gateway process (see DownloadPoolOptions.verbose).
+      ...(this.opts.verbose === false ? [] : ['--verbose']),
       '--cookies', cookies.cookieFilePath,
       '-o', outputTemplate,
       '-f', formatSel,
