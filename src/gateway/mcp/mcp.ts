@@ -217,6 +217,14 @@ export function getVideoSubsystem(deps: Deps): VideoSubsystem {
   // 403 / region-locked by most non-China sites).
   const proxyUrl = deps.cfg.proxyUrl ?? null;
 
+  // Verbose yt-dlp output is opt-in via YTDLP_VERBOSE=1 in the
+  // container env. The default (off) keeps stderr per-run under ~200
+  // bytes; when debugging intermittent failures (e.g. YouTube SABR /
+  // PO token / TLS RST on the v2raya exit IP) flip the env, restart
+  // the gateway, and the next failure's full --verbose transcript
+  // lands in /var/log/gateway/ytdlp-runs.log.
+  const ytdlpVerbose = process.env.YTDLP_VERBOSE === '1' || process.env.YTDLP_VERBOSE === 'true';
+
   const fetchCookies = async (uid: string): Promise<CamofoxCookie[]> => {
     const url = `${camofoxBase}/sessions/${encodeURIComponent(uid)}/cookies`;
     const headers: Record<string, string> = { 'Accept': 'application/json' };
@@ -310,6 +318,7 @@ export function getVideoSubsystem(deps: Deps): VideoSubsystem {
     userId,
     proxyUrl,
     logDir: deps.cfg.logDir,
+    verbose: ytdlpVerbose,
     douyinDownloader,
   });
 
