@@ -131,4 +131,54 @@ describe('DownloadPool', () => {
     expect(results).toHaveLength(5);
     expect(maxActive).toBeLessThanOrEqual(3);
   });
+
+  describe('quality → format selector mapping', () => {
+    // Construct a pool with a capturing exec and assert the `-f` flag
+    // value. The mapping is the central contract for clients: a
+    // caller-supplied `best` should now pick a 1080p-capped stream
+    // instead of the unbounded `bv*+ba/b` (which reliably hit SABR /
+    // player-API rate limits on the shared v2raya exit).
+    async function captureFormat(quality: string): Promise<string> {
+      const execFn = vi.fn().mockResolvedValue({ exitCode: 1, stdout: '', stderr: '' });
+      const pool = new DownloadPool({
+        cookieDir: tmpDir,
+        outputDir: tmpDir,
+        tempStore: store,
+        workerCount: 1,
+        fetchCamofoxCookies,
+        exec: execFn,
+      });
+      // We don't care whether the download succeeded — only the format
+      // arg passed to the (mocked) exec invocation. Intentionally exit
+      // non-zero so the helper doesn't accidentally assert success.
+      await pool.downloadOne('https://example.com/v', quality);
+      const call = execFn.mock.calls[0];
+      const args = call[1] as string[];
+      return args[args.indexOf('-f') + 1];
+    }
+
+    it('best → 1080p height-capped selector', async () => {
+      expect(await captureFormat('best'))
+        .toBe('bv*[height<=1080]+ba/b[height<=1080]');
+    });
+
+    it('1080p → 1080p height-capped selector', async () => {
+      expect(await captureFormat('1080p'))
+        .toBe('bv*[height<=1080]+ba/b[height<=1080]');
+    });
+
+    it('720p → 720p height-capped selector', async () => {
+      expect(await captureFormat('720p'))
+        .toBe('bv*[height<=720]+ba/b[height<=720]');
+    });
+
+    it('480p → 480p height-capped selector', async () => {
+      expect(await captureFormat('480p'))
+        .toBe('bv*[height<=480]+ba/b[height<=480]');
+    });
+
+    it('worst → worst (combined, no DASH merge)', async () => {
+      expect(await captureFormat('worst')).toBe('worst');
+    });
+  });
 });

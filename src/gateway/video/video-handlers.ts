@@ -54,7 +54,11 @@ export async function runVideoDownload(
   input: { urls: string[]; quality?: string },
   ctx: VideoHandlerCtx,
 ): Promise<{ results: VideoDownloadResult[] }> {
-  const q = input.quality ?? 'best';
+  // Default quality is `720p` when the caller omits `quality`. The legacy
+  // `best` sentinel still resolves to 1080p in the format-selector mapping
+  // below — both stay as accepted input values from REST/MCP clients to
+  // avoid breaking older agents.
+  const q = input.quality ?? '720p';
   log.info('video.download.start', { urls: input.urls.map((u) => new URL(u).hostname), quality: q });
   const t0 = Date.now();
   const results = await ctx.video.pool.downloadMany(input.urls, q);

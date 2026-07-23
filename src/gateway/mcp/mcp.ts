@@ -309,6 +309,7 @@ export function getVideoSubsystem(deps: Deps): VideoSubsystem {
     exec,
     userId,
     proxyUrl,
+    logDir: deps.cfg.logDir,
     douyinDownloader,
   });
 
@@ -400,7 +401,7 @@ export function createMcpServer(deps: Deps, ctx: ServerCtx = { clientHost: null 
       description: 'Download 1-3 video URLs to a temp file inside the container. Returns a temporary HTTPS URL the client can GET to fetch the bytes. Files are deleted after 1 hour. Douyin URLs resolve media in Camofox and download through the configured proxy; other platforms use yt-dlp with Camofox cookies injected automatically.',
       inputSchema: {
         urls: z.array(z.string().url()).min(1).max(3).describe('1-3 video URLs to download in parallel'),
-        quality: z.enum(['best', '1080p', '720p', '480p', 'worst']).optional().describe('Video quality (default best)'),
+        quality: z.enum(['best', '1080p', '720p', '480p', 'worst']).optional().describe('Video quality: a height cap (1080p/720p/480p), the lowest combined stream (worst), or the legacy `best` sentinel (also 1080p). Default 720p.'),
       },
     },
     async ({ urls, quality }) => {

@@ -38,6 +38,10 @@ export interface DownloadPoolOptions {
   wakeBrowser?: (userId: string) => Promise<void>;
   exec: ExecFn;
   userId: string;
+  /** Directory where yt-dlp stderr is appended on failure. Same path as
+   *  the gateway JSONL log so operators can inspect both from a single
+   *  host bind-mount. Optional — when omitted, stderr is not persisted. */
+  logDir?: string;
   /** Optional proxy URL (http://host:port). When set, yt-dlp receives
    *  `--proxy <url>` so video downloads exit via v2raya instead of the
    *  bare container IP. */
@@ -55,6 +59,19 @@ export class DownloadPool {
     this.cookieDir = opts.cookieDir;
     this.outputDir = opts.outputDir;
     log.info('download-pool.ctor', { userId: opts.userId });
+  }
+
+  /** Append a single yt-dlp run's stderr (full, untruncated) to
+   *  `<logDir>/ytdlp-errors.log` with a header line carrying the URL,
+   *  exit code, and ISO timestamp so subsequent grep / awk can group
+   *  failures by URL or by time window. Silent on filesystem error —
+   *  the download result has already been computed at the call site
+   *  and the log is purely diagnostic. */
+  private async appendYtdlpLog(rawUrl: string, exitCode: number, stderr: string): Promise<void> {
+    if (!this.opts.logDir) return;
+    const filePath = `${this.opts.logDir}/ytdlp-errors.log`;
+    const header = `\n===== ${new Date().toISOString()} url=${rawUrl} exit=${exitCode} =====\n`;
+    await fs.appendFile(filePath, header + stderr + '\n', { encoding: 'utf8' });
   }
 
   async downloadMany(urls: string[], quality: string): Promise<VideoDownloadResult[]> {
@@ -101,11 +118,16 @@ export class DownloadPool {
     // bestaudio the best audio. Falls back to the single best combined stream
     // if the site doesn't expose separate video/audio (rare; youtube always
     // does, but legacy / non-dash sites may not). `worst` is intentionally the
-    // lowest-only combined stream (no DASH merge required).
-    const formatSel = quality === 'best'
-      ? 'bv*+ba/b'
-      : quality === 'worst'
-        ? 'worst'
+    // lowest-only combined stream (no DASH merge required). `best` is a
+    // legacy sentinel kept for backward-compat with older clients — it now
+    // maps to 1080p instead of the unbounded `bv*+ba/b` so it hits the same
+    // height-capped branch as the explicit quality values (the unbounded
+    // selector reliably hit YouTube's player-API rate limit / SABR challenge
+    // on `textvision.top`'s v2raya exit IP).
+    const formatSel = quality === 'worst'
+      ? 'worst'
+      : quality === 'best' || quality === '1080p'
+        ? 'bv*[height<=1080]+ba/b[height<=1080]'
         : `bv*[height<=${parseInt(quality, 10)}]+ba/b[height<=${parseInt(quality, 10)}]`;
     const args = [
       '--no-warnings',
@@ -119,10 +141,22 @@ export class DownloadPool {
     const res = await this.opts.exec('yt-dlp', args, { cwd: this.outputDir, timeoutMs: 10 * 60 * 1000 });
     if (res.exitCode !== 0) {
       const code: ErrorCode = /Sign in|login|403/.test(res.stderr) ? 'LOGIN_REQUIRED' : 'YT_DLP_FAILED';
+      // Persist the FULL yt-dlp stderr so future failures are diagnosable
+      // from the host bind-mount (./data/log/ytdlp-errors.log) instead of
+      // having to replay the request with --verbose. The API's
+      // error_message stays truncated to 500 chars for backwards
+      // compatibility. A failed append must never throw — losing the
+      // log is preferable to crashing the download.
+      void this.appendYtdlpLog(rawUrl, res.exitCode, res.stderr).catch(() => {});
       return { url: rawUrl, ok: false, error_code: code, error_message: res.stderr.slice(0, 500) };
     }
+    // Also log when the command succeeds but produces no output file
+    // (rare; usually means yt-dlp exited 0 but the expected format was
+    // skipped). Keeping these in the same log keeps all yt-dlp diagnostics
+    // in one place.
     const file = await this.findOutputFile(outputTemplate);
     if (!file) {
+      void this.appendYtdlpLog(rawUrl, res.exitCode, `[exit 0 but no output file]\n${res.stderr}`).catch(() => {});
       return { url: rawUrl, ok: false, error_code: 'YT_DLP_FAILED', error_message: 'output file not found' };
     }
     const { id, expires_at } = await this.opts.tempStore.register(file);
