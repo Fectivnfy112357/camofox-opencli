@@ -6,6 +6,8 @@ import { getVncUrl } from './camofox-login.js';
 import { createRestHandler, type Deps } from '../api/rest.js';
 import { createMcpServer } from './mcp.js';
 import { build as buildSearchCache, size as searchCacheSize } from '../core/search-cache.js';
+import { runVideoSearch, runVideoDownload } from '../video/video-handlers.js';
+import { getVideoSubsystem } from './mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { initLogger, log } from '../core/logger.js';
 import { TempStore } from '../video/temp-store.js';
@@ -39,7 +41,11 @@ const deps: Deps = {
   tempStore,
 };
 
-const rest = createRestHandler(deps);
+const rest = createRestHandler(deps, {
+  search: runVideoSearch,
+  download: runVideoDownload,
+  subsystem: getVideoSubsystem(deps),
+});
 
 function headerHostOf(req: import('node:http').IncomingMessage): string | null {
   const xfHost = req.headers['x-forwarded-host'];
