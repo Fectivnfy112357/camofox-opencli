@@ -194,7 +194,7 @@ export interface VideoSubsystem {
 
 let _video: VideoSubsystem | null = null;
 
-function getVideoSubsystem(deps: Deps): VideoSubsystem {
+export function getVideoSubsystem(deps: Deps): VideoSubsystem {
   if (_video) return _video;
   const tmpDir = deps.tempStore?.['opts']?.tmpDir ?? deps.cfg.outputDir ?? './tmp';
   const execAsync = promisify(execCb) as unknown as (
