@@ -7,10 +7,10 @@ camofox-opencli 网关在 `http://<host>:8080` 上提供以下两个视频相关
 ### Base URL
 
 ```
-http://textvision.top:8080
+http://textvision.top:9378
 ```
 
-> 容器内调用可用 `http://127.0.0.1:8080`，经由反向代理公开时使用 `https://textvision.top:8080`。两种形式等效。
+> 容器内调用可用 `http://127.0.0.1:8080`，经由反向代理公开时使用 `https://textvision.top:9378`。两种形式等效。
 
 ### 鉴权
 
@@ -71,7 +71,7 @@ Authorization: Bearer <GATEWAY_API_KEY>
 |---|---|---|---|---|
 | `query` | string | 是 | — | 搜索关键词；非空字符串 |
 | `platform` | string | 否 | `bilibili, youtube, tiktok` | 单个站点名（见下表）、`"all"`（8 站点全搜）或省略 |
-| `limit` | integer | 否 | `10` | 每个站点返回的结果数；范围 `1..30` |
+| `limit` | integer | 否 | `10` | **每个平台**返回的结果数（`1..30`），**不是全局总条数**；实际 `data.results.length = limit × succeeded 平台数` |
 
 **`platform` 取值**
 
@@ -174,6 +174,7 @@ curl -sS -X POST http://textvision.top:8080/video/search \
 - 整次请求耗时 ≈ 最慢单站点的查询耗时（并发 3 路）。
 - 默认三站点一般在 3–10 秒；`platform="all"` 全部 8 站点并发 3 路，约 15–30 秒。
 - 单平台失败不会拖慢整体——失败的站点即时进入 `stats.failed`，不重试。
+- **`results.length` 上限**：`limit × len(stats.succeeded)`。例：`platform=all`、`limit=5` → 最多 40 条；5 平台成功 → 实得 25 条。
 
 ---
 
