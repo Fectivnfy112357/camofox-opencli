@@ -13,6 +13,7 @@ import { DownloadPool, type ExecFn, type RunResultLike } from '../video/download
 import { DouyinBrowserDownloader } from '../video/douyin-browser-downloader.js';
 import { TempStore } from '../video/temp-store.js';
 import { buildAbsoluteUrl } from '../video/url-builder.js';
+import { runVideoSearch, runVideoDownload } from '../video/video-handlers.js';
 import type { CamofoxCookie } from '../video/video-cookies.js';
 
 export const PRIMARY_SITES = [
@@ -375,27 +376,11 @@ export function createMcpServer(deps: Deps, ctx: ServerCtx = { clientHost: null 
       },
     },
     async ({ query, platform, limit }) => {
-      log.info('video.search.start', { query, platform, limit: limit ?? null });
       try {
-        const routerDeps: RouterDeps = {
-          runOpencli: async (site, command, argv) => {
-            const r = await deps.run(site, command, argv);
-            const ok = !!r.ok;
-            return {
-              ok,
-              exitCode: ok ? 0 : 1,
-              stdout: ok ? JSON.stringify(r.data ?? {}) : '',
-              stderr: ok ? '' : (r.stderr ?? JSON.stringify(r.data ?? {})),
-            };
-          },
-        };
-        const res = await searchVideos({ query, platform, limit }, routerDeps);
-        log.info('video.search.done', {
-          query, platform: platform ?? null,
-          results: res.results.length,
-          ok: res.stats.succeeded.length,
-          failed: res.stats.failed.length,
-        });
+        const res = await runVideoSearch(
+          { query, platform, limit },
+          { deps, video, req: ctx.req ?? ({ headers: {} } as IncomingMessage), clientHost: ctx.clientHost },
+        );
         return { content: [{ type: 'text', text: JSON.stringify(res) }] };
       } catch (err) {
         const code = (err as { code?: string })?.code ?? 'EMPTY_QUERY';
@@ -419,26 +404,11 @@ export function createMcpServer(deps: Deps, ctx: ServerCtx = { clientHost: null 
       },
     },
     async ({ urls, quality }) => {
-      const q = quality ?? 'best';
-      log.info('video.download.start', { urls: urls.map((u) => new URL(u).hostname), quality: q });
-      const t0 = Date.now();
-      const results = await video.pool.downloadMany(urls, q);
-      const req: IncomingMessage = ctx.req ?? ({ headers: {} } as IncomingMessage);
-      const patched = results.map((r, i) => {
-        if (!r.ok) return r;
-        const abs = buildAbsoluteUrl(req, r.download_url);
-        return { ...r, url: urls[i], download_url: abs ?? r.download_url };
-      });
-      log.info('video.download.done', {
-        urls: urls.map((u) => new URL(u).hostname),
-        quality: q,
-        ms: Date.now() - t0,
-        ok_count: patched.filter((r) => r.ok).length,
-        fail_count: patched.length - patched.filter((r) => r.ok).length,
-        methods: patched.filter((r) => r.ok).map((r) => (r as { method?: string }).method ?? '?'),
-        errors: patched.filter((r) => !r.ok).map((r) => (r as { error_code?: string }).error_code ?? '?'),
-      });
-      return { content: [{ type: 'text', text: JSON.stringify({ results: patched }) }] };
+      const { results } = await runVideoDownload(
+        { urls, quality },
+        { deps, video, req: ctx.req ?? ({ headers: {} } as IncomingMessage), clientHost: ctx.clientHost },
+      );
+      return { content: [{ type: 'text', text: JSON.stringify({ results }) }] };
     },
   );
 
