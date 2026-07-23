@@ -186,7 +186,7 @@ async function runCmd(
 export interface ServerCtx { clientHost: string | null; req?: IncomingMessage }
 
 /** Lazy video subsystem built once per server (deps.tempStore is shared). */
-interface VideoSubsystem {
+export interface VideoSubsystem {
   pool: DownloadPool;
   fetchCookies: (userId: string) => Promise<CamofoxCookie[]>;
 }
