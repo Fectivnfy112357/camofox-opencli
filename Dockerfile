@@ -202,8 +202,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Some upstream yt-dlp packages lag behind YouTube's JS challenges; if the
 # apt-installed version is older than 2026.x, pip-install the latest. Skipped
 # silently on networks without internet.
+#
+# curl_cffi provides yt-dlp's impersonation targets (browser TLS/JA3
+# fingerprints). TikTok's extractor requests impersonation internally
+# (impersonate=True); without curl_cffi it falls back to plain urllib, gets
+# fingerprinted by TikTok's anti-bot, and returns a thin/empty format list →
+# "Requested format is not available". The `curl-cffi` pip extra installs it;
+# verify with `yt-dlp --list-impersonate-targets`.
 RUN yt-dlp --version || true \
-    && pip3 install --break-system-packages --no-cache-dir -U "yt-dlp>=2026.7.0" "yt-dlp-ejs" 2>/dev/null || true \
+    && pip3 install --break-system-packages --no-cache-dir -U "yt-dlp[curl-cffi]>=2026.7.0" "yt-dlp-ejs" 2>/dev/null || true \
     && yt-dlp --version || true
 
 # deno: yt-dlp's EJS (External JavaScript Solver) for YouTube signature

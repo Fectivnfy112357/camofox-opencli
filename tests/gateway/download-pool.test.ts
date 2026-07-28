@@ -159,22 +159,22 @@ describe('DownloadPool', () => {
 
     it('best → 1080p height-capped selector', async () => {
       expect(await captureFormat('best'))
-        .toBe('bv*[height<=1080]+ba/b[height<=1080]');
+        .toBe('bv*[height<=1080]+ba/b[height<=?1080]/b');
     });
 
     it('1080p → 1080p height-capped selector', async () => {
       expect(await captureFormat('1080p'))
-        .toBe('bv*[height<=1080]+ba/b[height<=1080]');
+        .toBe('bv*[height<=1080]+ba/b[height<=?1080]/b');
     });
 
     it('720p → 720p height-capped selector', async () => {
       expect(await captureFormat('720p'))
-        .toBe('bv*[height<=720]+ba/b[height<=720]');
+        .toBe('bv*[height<=720]+ba/b[height<=?720]/b');
     });
 
     it('480p → 480p height-capped selector', async () => {
       expect(await captureFormat('480p'))
-        .toBe('bv*[height<=480]+ba/b[height<=480]');
+        .toBe('bv*[height<=480]+ba/b[height<=?480]/b');
     });
 
     it('worst → worst (combined, no DASH merge)', async () => {

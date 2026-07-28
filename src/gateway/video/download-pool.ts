@@ -185,21 +185,34 @@ export class DownloadPool {
       userId: this.opts.userId,
     });
     const outputTemplate = path.join(this.outputDir, `video_${randomUUID()}.%(ext)s`);
-    // Quality is a height cap: bestvideo picks the best video stream ≤ N px tall,
-    // bestaudio the best audio. Falls back to the single best combined stream
-    // if the site doesn't expose separate video/audio (rare; youtube always
-    // does, but legacy / non-dash sites may not). `worst` is intentionally the
-    // lowest-only combined stream (no DASH merge required). `best` is a
-    // legacy sentinel kept for backward-compat with older clients — it now
-    // maps to 1080p instead of the unbounded `bv*+ba/b` so it hits the same
-    // height-capped branch as the explicit quality values (the unbounded
-    // selector reliably hit YouTube's player-API rate limit / SABR challenge
-    // on `textvision.top`'s v2raya exit IP).
+    // Quality is a height cap, expressed as a from-strict-to-loose fallback
+    // chain so ONE selector serves both DASH sites and progressive sites:
+    //
+    //   bv*[height<=N]+ba   — DASH split streams, strict cap (YouTube). height
+    //                         is always known here, so no `?` — cap it hard.
+    //   /b[height<=?N]      — progressive muxed stream (TikTok et al). The `?`
+    //                         lets formats with UNKNOWN height through: TikTok
+    //                         exposes no audio-only stream (so `+ba` above is
+    //                         unsatisfiable and never reached) and its formats
+    //                         frequently omit `height`, which a hard `<=N`
+    //                         filter would wrongly exclude → "Requested format
+    //                         is not available".
+    //   /b                  — final catch-all: any progressive stream, so we
+    //                         never hard-fail even when height is known but >N.
+    //
+    // `worst` is intentionally the lowest-only combined stream (no DASH merge
+    // required). `best` is a legacy sentinel kept for backward-compat with
+    // older clients — it now maps to 1080p so it hits the same capped chain as
+    // the explicit quality values (the previously-unbounded `bv*+ba/b`
+    // reliably hit YouTube's player-API rate limit / SABR challenge on
+    // `textvision.top`'s v2raya exit IP).
+    const heightSelector = (n: number): string =>
+      `bv*[height<=${n}]+ba/b[height<=?${n}]/b`;
     const formatSel = quality === 'worst'
       ? 'worst'
       : quality === 'best' || quality === '1080p'
-        ? 'bv*[height<=1080]+ba/b[height<=1080]'
-        : `bv*[height<=${parseInt(quality, 10)}]+ba/b[height<=${parseInt(quality, 10)}]`;
+        ? heightSelector(1080)
+        : heightSelector(parseInt(quality, 10));
     const proxyInjected = Boolean(this.opts.proxyUrl);
     const args = [
       // --no-progress: keep stderr clean of the carriage-return progress

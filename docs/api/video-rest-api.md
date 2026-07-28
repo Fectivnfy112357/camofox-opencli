@@ -196,17 +196,19 @@ curl -sS -X POST http://textvision.top:8080/video/search \
 | 字段 | 类型 | 必需 | 默认 | 说明 |
 |---|---|---|---|---|
 | `urls` | string[] | 是 | — | 1–3 个视频页 URL；每个必须以 `http://` 或 `https://` 开头 |
-| `quality` | enum | 否 | `best` | 见下表 |
+| `quality` | enum | 否 | `720p` | 见下表 |
 
 **`quality` 取值**
 
 | 值 | yt-dlp 格式选择器 | 适用场景 |
 |---|---|---|
-| `"best"` | `bv*+ba/b` | 默认：最佳视频流 + 最佳音频流（合并），fallback 到最佳单一文件 |
-| `"1080p"` | `bv*[height<=1080]+ba/b[height<=1080]` | 限制最高 1080p |
-| `"720p"` | `bv*[height<=720]+ba/b[height<=720]` | 限制最高 720p |
-| `"480p"` | `bv*[height<=480]+ba/b[height<=480]` | 限制最高 480p |
+| `"best"` | `bv*[height<=1080]+ba/b[height<=?1080]/b` | 遗留别名，等价于 `1080p`（曾是无界 `bv*+ba/b`，会触发 YouTube SABR 限流，已改为 1080p 上限） |
+| `"1080p"` | `bv*[height<=1080]+ba/b[height<=?1080]/b` | 限制最高 1080p |
+| `"720p"` | `bv*[height<=720]+ba/b[height<=?720]/b` | 限制最高 720p |
+| `"480p"` | `bv*[height<=480]+ba/b[height<=?480]/b` | 限制最高 480p |
 | `"worst"` | `worst` | 最低质量，单一文件 |
+
+选择器是**从严到宽的 fallback 链**，兼顾 DASH 分离流（YouTube）和 progressive 合流站点（TikTok 等）：`bv*[height<=N]+ba` 走 DASH 严格限高；`/b[height<=?N]` 用 `?` 让 height 未知的 progressive 格式也通过（TikTok 无独立音频流且常缺 `height`）；末尾裸 `/b` 兜底，避免 `Requested format is not available`。
 
 ### 响应
 
