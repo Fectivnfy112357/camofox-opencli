@@ -29,8 +29,11 @@ vi.mock('../../src/shim/session.js', () => ({
 
 import { translateCommand } from '../../src/shim/translator.js';
 import * as camofox from '../../src/shim/camofox-client.js';
+import * as session from '../../src/shim/session.js';
 
 const mockedGetCookies = camofox.getCookies as unknown as ReturnType<typeof vi.fn>;
+const mockedEvaluate = camofox.evaluate as unknown as ReturnType<typeof vi.fn>;
+const mockedGetSession = session.getSession as unknown as ReturnType<typeof vi.fn>;
 
 /**
  * Shaped after a real `GET /sessions/fectivnfy/cookies` response: a mix of
@@ -74,6 +77,10 @@ const names = (cookies: Array<{ name: string }>) => cookies.map((c) => c.name).s
 beforeEach(() => {
   mockedGetCookies.mockReset();
   mockedGetCookies.mockResolvedValue({ ok: true, cookies: COOKIE_JAR });
+  mockedEvaluate.mockReset();
+  mockedEvaluate.mockResolvedValue({ ok: false });
+  mockedGetSession.mockReset();
+  mockedGetSession.mockReturnValue({ userId: 'fectivnfy', tabId: 'tab-1' });
 });
 
 describe('cookies filter — the AUTH_REQUIRED regression', () => {
@@ -164,5 +171,63 @@ describe('cookies filter — untouched behaviours', () => {
   it('returns [] rather than throwing when Camofox has no cookies', async () => {
     mockedGetCookies.mockResolvedValue({ ok: true, cookies: [] });
     expect(await getCookiesFor({ url: 'https://x.com' })).toEqual([]);
+  });
+});
+
+/**
+ * Second regression: cookies live on the Camofox browser *context* (userId),
+ * not on a tab, so reading them must not require a navigate to have happened
+ * first. `handleCookies` used to `return []` whenever the session map had no
+ * entry, which made cold-start adapters that call getCookies() as their very
+ * first action (e.g. `zhihu whoami` → verifyZhihuIdentity) report a logged-in
+ * profile as anonymous.
+ */
+describe('cookies without a session (cold start)', () => {
+  beforeEach(() => {
+    mockedGetSession.mockReturnValue(undefined);
+  });
+
+  it('still reaches the Camofox cookie jar when no tab exists', async () => {
+    const cookies = await getCookiesFor({ url: 'https://www.zhihu.com' });
+    expect(cookies.map((c) => c.name)).toContain('z_c0');
+  });
+
+  it('does not return an empty list just because navigate has not run', async () => {
+    const cookies = await getCookiesFor({ url: 'https://x.com' });
+    expect(cookies.map((c) => c.name)).toContain('ct0');
+  });
+
+  it('falls back to CAMOFOX_USER_ID when the session map is empty', async () => {
+    const prev = process.env.CAMOFOX_USER_ID;
+    process.env.CAMOFOX_USER_ID = 'fectivnfy';
+    await getCookiesFor({ url: 'https://x.com' });
+    expect(mockedGetCookies).toHaveBeenCalledWith('fectivnfy');
+    if (prev === undefined) delete process.env.CAMOFOX_USER_ID;
+    else process.env.CAMOFOX_USER_ID = prev;
+  });
+
+  it('prefers the session userId when a session does exist', async () => {
+    mockedGetSession.mockReturnValue({ userId: 'alice', tabId: 'tab-9' });
+    await getCookiesFor({ url: 'https://x.com' });
+    expect(mockedGetCookies).toHaveBeenCalledWith('alice');
+  });
+
+  it('skips the document.cookie fallback when there is no tab to evaluate in', async () => {
+    mockedGetCookies.mockResolvedValue({ ok: true, cookies: [] });
+    const cookies = await getCookiesFor({ url: 'https://x.com' });
+    expect(cookies).toEqual([]);
+    expect(mockedEvaluate).not.toHaveBeenCalled();
+  });
+
+  it('still uses the document.cookie fallback when a tab IS available', async () => {
+    mockedGetSession.mockReturnValue({ userId: 'fectivnfy', tabId: 'tab-1' });
+    mockedGetCookies.mockResolvedValue({ ok: true, cookies: [] });
+    mockedEvaluate.mockResolvedValue({
+      ok: true,
+      result: [{ name: 'visible', value: 'v', domain: 'x.com', path: '/' }],
+    });
+    const cookies = await getCookiesFor({ url: 'https://x.com' });
+    expect(cookies.map((c) => c.name)).toEqual(['visible']);
+    expect(mockedEvaluate).toHaveBeenCalled();
   });
 });

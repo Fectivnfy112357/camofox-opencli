@@ -155,13 +155,20 @@ async function handleScreenshot(cmd: DaemonCommand): Promise<unknown> {
 
 async function handleCookies(cmd: DaemonCommand): Promise<unknown> {
   const m = session.getSession(cmd.session || 'default');
-  if (!m) return [];
+
+  // Cookies are scoped to the Camofox *browser context* (userId), not to a
+  // tab, so a session/tab is NOT required to read them. Adapters such as
+  // `zhihu whoami` call getCookies() as their very first action, before any
+  // navigate has created a tab; returning [] there made them misreport a
+  // logged-in profile as anonymous. Fall back to the same userId resolution
+  // handleTabs uses so a cold start still hits the real cookie jar.
+  const userId = m?.userId || cmd.contextId || process.env.CAMOFOX_USER_ID || 'default';
 
   // Try the Camofox GET cookies endpoint first (handles HttpOnly via Playwright context).
   // Fall back to document.cookie if the endpoint is unavailable.
   let cookies: Array<{ name: string; value: string; domain: string; path?: string; httpOnly?: boolean }> = [];
   try {
-    const result = await camofox.getCookies(m.userId);
+    const result = await camofox.getCookies(userId);
     if (result.ok && Array.isArray(result.cookies)) {
       cookies = result.cookies;
     }
@@ -169,8 +176,9 @@ async function handleCookies(cmd: DaemonCommand): Promise<unknown> {
     // Fall through to document.cookie path
   }
 
-  if (cookies.length === 0) {
+  if (cookies.length === 0 && m) {
     // Fallback: read document.cookie via evaluate. Does NOT include HttpOnly.
+    // Requires a live tab, so it only runs when a session actually exists.
     try {
       const js = `document.cookie.split('; ').filter(Boolean).map(c => {
         const [name, ...rest] = c.split('=');
