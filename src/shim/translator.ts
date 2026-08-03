@@ -194,14 +194,28 @@ async function handleCookies(cmd: DaemonCommand): Promise<unknown> {
   if (cmd.url) {
     try {
       const host = new URL(cmd.url).hostname;
-      cookies = cookies.filter(
-        (c) => c.domain === host || host.endsWith(c.domain),
-      );
+      cookies = cookies.filter((c) => cookieMatchesHost(c.domain, host));
     } catch {
       // ignore invalid URL, return all
     }
   }
   return cookies;
+}
+
+/**
+ * RFC 6265 domain match. A cookie `domain` of `.x.com` (leading dot = send to
+ * subdomains too) must match host `x.com`, which a naive
+ * `host.endsWith(c.domain)` misses because "x.com" does not end with ".x.com" —
+ * that bug silently dropped the `ct0` cookie and made every X/Twitter adapter
+ * report AUTH_REQUIRED despite a logged-in Camofox profile.
+ *
+ * The `'.' + base` suffix check keeps the boundary honest so a cookie for
+ * `ample.com` is not handed to `example.com`.
+ */
+function cookieMatchesHost(cookieDomain: string, host: string): boolean {
+  const base = cookieDomain.replace(/^\./, '').toLowerCase();
+  const h = host.toLowerCase();
+  return h === base || h.endsWith('.' + base);
 }
 
 // ─── Tabs ──────────────────────────────────────────────────────────
