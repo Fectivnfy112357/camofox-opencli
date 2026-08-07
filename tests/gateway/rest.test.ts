@@ -154,4 +154,55 @@ describe('createRestHandler', () => {
     await h(mockReq('POST', '/login', 'Bearer secret', { url: 'http://site' }), res as any);
     expect(JSON.parse(res.body).data.vncUrl).toBe('http://h:6080/vnc');
   });
+
+  it('POST /sites/:site/:command forwards args and dispatches', async () => {
+    const res = mockRes();
+    await h(mockReq('POST', '/sites/bilibili/search', 'Bearer secret',
+      { args: { keyword: 'x', limit: 3 } }), res as any);
+    expect(JSON.parse(res.body)).toEqual({ ok: true, data: { rows: [1] } });
+    expect(deps.run).toHaveBeenLastCalledWith('bilibili', 'search',
+      expect.arrayContaining(['x', '--limit', '3']));
+  });
+
+  it('POST /sites/:site/:command 400 on unknown command', async () => {
+    const res = mockRes();
+    await h(mockReq('POST', '/sites/bilibili/nope', 'Bearer secret',
+      { args: {} }), res as any);
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).error.code).toBe('unknown_command');
+  });
+
+  it('POST /sites/:site/:command rejects passthrough site', async () => {
+    const res = mockRes();
+    await h(mockReq('POST', '/sites/browser/navigate', 'Bearer secret',
+      { args: {} }), res as any);
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).error.message).toMatch(/passthrough/);
+  });
+
+  it('POST /sites/:site/:command auto-returns vncUrl on AUTH_REQUIRED', async () => {
+    const orig = deps.run;
+    deps.run = vi.fn(async () => ({
+      ok: false,
+      data: { ok: false, error: { code: 'AUTH_REQUIRED', help: 'open https://www.bilibili.com' }, exitCode: 77 },
+      stderr: '',
+    }));
+    try {
+      const res = mockRes();
+      await h(mockReq('POST', '/sites/bilibili/search', 'Bearer secret',
+        { args: { keyword: 'x' } }), res as any);
+      const env = JSON.parse(res.body);
+      expect(res.statusCode).toBe(200);
+      expect(env.ok).toBe(true);
+      expect(env.data.vncUrl).toBe('http://h:6080/vnc');
+    } finally {
+      deps.run = orig;
+    }
+  });
+
+  it('POST /sites/:site/:command works without args field', async () => {
+    const res = mockRes();
+    await h(mockReq('POST', '/sites/hackernews/top', 'Bearer secret', {}), res as any);
+    expect(JSON.parse(res.body).ok).toBe(true);
+  });
 });

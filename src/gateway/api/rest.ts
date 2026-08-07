@@ -105,6 +105,48 @@ export function createRestHandler(
         if (cmds.length === 0) return err(res, 404, 'unknown_site', `no such site: ${site}`);
         return ok(res, cmds);
       }
+      // Per-site command shortcut: POST /sites/<site>/<command> is equivalent to
+      // POST /run with { site, command, args }. Restricted to non-browser (manifest-backed)
+      // sites — browser passthrough is funneled through /run with the session handled
+      // there, so we don't have to mirror that quirk here. Body shape:
+      //   { args: { ... }, session?: string }   (args forwarded as-is to buildArgs)
+      const siteCmdMatch = path.match(/^\/sites\/([^/]+)\/([^/]+)$/);
+      if (method === 'POST' && siteCmdMatch) {
+        const site = decodeURIComponent(siteCmdMatch[1]);
+        const command = decodeURIComponent(siteCmdMatch[2]);
+        if (PASSTHROUGH_SITES.has(site)) {
+          return err(res, 400, 'bad_args',
+            `passthrough site "${site}" is not callable via /sites/:site/:command; use /run instead`);
+        }
+        const b = await readBody(req);
+        const args = (b && typeof b === 'object' && b.args && typeof b.args === 'object')
+          ? b.args as Record<string, unknown>
+          : {};
+        // Mirror MCP /run_command: <site> login default timeout 30s.
+        const augmentedArgs = (command === 'login' && args.timeout === undefined)
+          ? { ...args, timeout: 30 }
+          : args;
+        const record = manifest.findCommand(site, command);
+        if (!record) return err(res, 400, 'unknown_command', `no such command: ${site} ${command}`);
+        let argv: string[];
+        try { argv = buildArgs(record, augmentedArgs); }
+        catch (e) { return err(res, 400, 'bad_args', (e as Error).message); }
+        log.info('rest.site_cmd.start', { site, command, args });
+        const r = await deps.run(site, command, argv);
+        if (!r.ok) {
+          const data = r.data as { error?: { code?: string; help?: string } } | undefined;
+          if (data?.error?.code === 'AUTH_REQUIRED') {
+            const url = data.error.help?.match(/https?:\/\S+/)?.[0];
+            const vncUrl = await deps.vnc({ url, clientHost: extractHost(req) ?? undefined });
+            log.warn('rest.site_cmd.auth_required', { site, command, vncUrl });
+            return ok(res, { error: data.error, vncUrl, hint: 'Open the VNC link, log in, then re-run.' });
+          }
+          log.warn('rest.site_cmd.error', { site, command, stderr: r.stderr });
+          return err(res, 502, 'opencli_error', r.stderr ?? 'unknown');
+        }
+        log.info('rest.site_cmd.done', { site, command, ok: true });
+        return ok(res, r.data);
+      }
       if (method === 'POST' && path === '/run') {
         const b = await readBody(req);
         const { site, command, args = {} } = b;
