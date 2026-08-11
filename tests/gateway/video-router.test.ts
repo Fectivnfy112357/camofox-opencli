@@ -61,4 +61,43 @@ describe('searchVideos', () => {
     // Calls 3..5 from the second search with no limit → defaults to 10
     expect(runOpencli.mock.calls[3][2]).toEqual(expect.arrayContaining(['--limit', '10']));
   });
+
+  // Regression for the twitter 0-row bug: twitter adapter emits
+  // { id, author, bio, text, created_at, likes, views, url, ... }
+  // (per OpenCLI/clis/twitter/search.js:tweetToRow). The original mapRow
+  // only looked at title/desc/name and dropped every twitter row.
+  it('maps twitter-shaped rows (text as title) and preserves likes/views/url', async () => {
+    const runOpencli = vi.fn().mockResolvedValue({
+      ok: true, exitCode: 0,
+      stdout: JSON.stringify([{
+        id: '2084106804032872591',
+        author: 'MiniMax_AI',
+        bio: '',
+        text: 'MiniMax-H3 Is Now Publicly Available https://t.co/x24nyGoKt8',
+        created_at: 'Mon Aug 03 02:39:17 +0000 2026',
+        likes: 4701,
+        views: '1698153',
+        url: 'https://x.com/i/status/2084106804032872591',
+        has_media: true,
+        media_urls: ['https://video.twimg.com/.../mp4'],
+        media_posters: ['https://pbs.twimg.com/.../jpg'],
+        card: null,
+        quoted_tweet: null,
+      }]),
+      stderr: '',
+    });
+    const res = await searchVideos({ query: 'minimax', platform: 'twitter' }, { runOpencli });
+    expect(res.stats.succeeded).toEqual(['twitter']);
+    expect(res.results).toHaveLength(1);
+    const r = res.results[0];
+    expect(r.platform).toBe('twitter');
+    expect(r.id).toBe('2084106804032872591');
+    expect(r.title).toContain('MiniMax-H3');
+    expect(r.title).toContain('Publicly Available');
+    expect(r.url).toBe('https://x.com/i/status/2084106804032872591');
+    expect(r.author).toBe('MiniMax_AI');
+    // views comes back as a string from the adapter; mapRow must accept that
+    // without throwing and propagate it as-is.
+    expect(r.views).toBe('1698153');
+  });
 });

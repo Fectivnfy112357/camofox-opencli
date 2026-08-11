@@ -62,7 +62,11 @@ function mapRow(site: VideoSite, row: any): VideoSearchResult | null {
   // so the result row can still be linked back to its source list.
   const idRaw = row.id ?? row.bvid ?? row.video_id ?? row.aweme_id ?? row.shortcode ?? row.rank;
   const id = idRaw != null ? String(idRaw) : '';
-  const title = String(row.title ?? row.desc ?? row.name ?? '');
+  // Title fallbacks: title (most adapters), desc (douyin/xiaohongshu),
+  // text (twitter — its search adapter emits `text` for the tweet body),
+  // name (catch-all). Without `text` in this chain every twitter row was
+  // dropped because tweetToRow only emits `text`, never `title`/`desc`/`name`.
+  const title = String(row.title ?? row.desc ?? row.text ?? row.name ?? '');
   const url = String(row.url ?? row.video_url ?? (id ? canonicalUrl(site, id) : ''));
   if (!id || !title || !url) return null;
   return {
@@ -73,14 +77,16 @@ function mapRow(site: VideoSite, row: any): VideoSearchResult | null {
     author: row.author ?? row.user ?? row.nickname,
     duration: row.duration,
     // `score` is the universal rank/heat column across adapters; `views/play_count/view_count`
-    // are the optional numeric view-count columns some adapters populate.
+    // are the optional numeric view-count columns some adapters populate. Note the
+    // twitter adapter emits `views` as a STRING ("1698153") rather than a number,
+    // so we keep whatever the adapter gave us rather than coercing to a number.
     views: typeof row.views === 'number'
       ? row.views
       : typeof row.plays === 'number'
         ? row.plays
         : typeof row.score === 'number'
           ? row.score
-          : row.view_count ?? row.play_count,
+          : row.view_count ?? row.play_count ?? row.views,
     thumbnail: row.thumbnail ?? row.cover ?? row.pic,
   };
 }
