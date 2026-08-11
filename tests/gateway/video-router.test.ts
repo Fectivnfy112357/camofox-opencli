@@ -100,4 +100,63 @@ describe('searchVideos', () => {
     // without throwing and propagate it as-is.
     expect(r.views).toBe('1698153');
   });
+
+  // Regression for the instagram video_search bug. Instagram's `search` command
+  // only matches user accounts (topsearch?context=user), so video_search now
+  // routes instagram to `explore` (the discover grid), whose rows look like
+  // { rank, user, caption, likes, comments, type }. The earlier mapRow did
+  // not understand `caption` (so titles were empty → row dropped) and did
+  // not filter out `type: 'photo'`, so the response was always empty or
+  // polluted with non-video posts.
+  it('routes instagram through the explore command and maps caption/type/url', async () => {
+    const runOpencli = vi.fn().mockResolvedValue({
+      ok: true, exitCode: 0,
+      stdout: JSON.stringify([
+        {
+          rank: 1,
+          user: 'somecreator',
+          caption: 'A sunset reel from yesterday',
+          likes: 1234,
+          comments: 56,
+          type: 'video',
+          code: 'CxYz1234',
+          pk: '9876543210',
+        },
+      ]),
+      stderr: '',
+    });
+    const res = await searchVideos({ query: 'sunset', platform: 'instagram', limit: 5 }, { runOpencli });
+    // The command should be `explore`, not `search`, and query should NOT be
+    // forwarded (instagram's public API has no keyword-video search).
+    expect(runOpencli).toHaveBeenCalledWith('instagram', 'explore', ['--format', 'json', '--limit', '5']);
+    expect(res.stats.succeeded).toEqual(['instagram']);
+    expect(res.results).toHaveLength(1);
+    const r = res.results[0];
+    expect(r.platform).toBe('instagram');
+    expect(r.title).toBe('A sunset reel from yesterday');
+    expect(r.author).toBe('somecreator');
+    // The id fallback chain tries code/pk/rank; `code` wins here.
+    expect(r.id).toBe('CxYz1234');
+  });
+
+  it('filters out instagram explore rows whose type is photo', async () => {
+    const runOpencli = vi.fn().mockResolvedValue({
+      ok: true, exitCode: 0,
+      stdout: JSON.stringify([
+        { rank: 1, user: 'a', caption: 'a photo post', likes: 10, comments: 1, type: 'photo' },
+        { rank: 2, user: 'b', caption: 'a video post', likes: 20, comments: 2, type: 'video' },
+        { rank: 3, user: 'c', caption: 'a carousel', likes: 30, comments: 3, type: 'carousel' },
+      ]),
+      stderr: '',
+    });
+    const res = await searchVideos({ query: 'x', platform: 'instagram' }, { runOpencli });
+    // Photo is dropped, video and carousel survive.
+    expect(res.results.map((r) => r.author)).toEqual(['b', 'c']);
+  });
+
+  it('keeps forwarding query for non-instagram sites', async () => {
+    const runOpencli = vi.fn().mockResolvedValue({ ok: true, exitCode: 0, stdout: '[]', stderr: '' });
+    await searchVideos({ query: '周杰伦', platform: 'bilibili' }, { runOpencli });
+    expect(runOpencli).toHaveBeenCalledWith('bilibili', 'search', ['周杰伦', '--format', 'json', '--limit', '10']);
+  });
 });

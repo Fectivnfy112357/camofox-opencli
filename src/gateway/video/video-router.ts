@@ -34,14 +34,36 @@ function clampLimit(limit: number | undefined): number {
   return limit;
 }
 
+// Per-site opencli command name + whether the adapter accepts a positional
+// <query>. Most adapters expose a `search` command that takes the query
+// directly; instagram's `search` command only matches user accounts
+// (OpenCLI/clis/instagram/search.js → topsearch?context=user), so for
+// video_search we route it to `explore` (the discover/trending grid),
+// which returns real media posts (video/photo/carousel). IG's public
+// web API has no keyword-video search endpoint, so `query` is dropped
+// for this site and we just sample the explore grid.
+const SITE_COMMAND: Record<VideoSite, { command: string; passthroughQuery: boolean }> = {
+  bilibili:   { command: 'search',   passthroughQuery: true  },
+  youtube:    { command: 'search',   passthroughQuery: true  },
+  douyin:     { command: 'search',   passthroughQuery: true  },
+  tiktok:     { command: 'search',   passthroughQuery: true  },
+  instagram:  { command: 'explore',  passthroughQuery: false },
+  xiaohongshu:{ command: 'search',   passthroughQuery: true  },
+  weibo:      { command: 'search',   passthroughQuery: true  },
+  twitter:    { command: 'search',   passthroughQuery: true  },
+};
+
 async function searchOneSite(
   site: VideoSite,
   query: string,
   limit: number,
   runOpencli: RunOpencliFn,
 ): Promise<{ ok: true; rows: VideoSearchResult[] } | { ok: false; error: string }> {
-  const args = [query, '--format', 'json', '--limit', String(limit)];
-  const res = await runOpencli(site, 'search', args);
+  const route = SITE_COMMAND[site];
+  const args = route.passthroughQuery
+    ? [query, '--format', 'json', '--limit', String(limit)]
+    : ['--format', 'json', '--limit', String(limit)];
+  const res = await runOpencli(site, route.command, args);
   if (!res.ok) {
     return { ok: false, error: res.stderr || `exit ${res.exitCode}` };
   }
@@ -60,26 +82,50 @@ function mapRow(site: VideoSite, row: any): VideoSearchResult | null {
   // opencli adapters expose varying column shapes (id/bvid/aweme_id vs. plain rank).
   // Fall back through every plausible id column, then use `rank` as a last resort
   // so the result row can still be linked back to its source list.
-  const idRaw = row.id ?? row.bvid ?? row.video_id ?? row.aweme_id ?? row.shortcode ?? row.rank;
+  const idRaw = row.id ?? row.bvid ?? row.video_id ?? row.aweme_id ?? row.shortcode ?? row.code ?? row.pk ?? row.rank;
   const id = idRaw != null ? String(idRaw) : '';
   // Title fallbacks: title (most adapters), desc (douyin/xiaohongshu),
   // text (twitter — its search adapter emits `text` for the tweet body),
+  // caption (instagram's `explore` command emits `caption` for the post text),
   // name (catch-all). Without `text` in this chain every twitter row was
   // dropped because tweetToRow only emits `text`, never `title`/`desc`/`name`.
-  const title = String(row.title ?? row.desc ?? row.text ?? row.name ?? '');
-  const url = String(row.url ?? row.video_url ?? (id ? canonicalUrl(site, id) : ''));
+  const title = String(row.title ?? row.desc ?? row.text ?? row.caption ?? row.name ?? '');
+  // url: prefer the adapter's own url when it actually points at a video
+  // post. For instagram, the `search` adapter returns `https://www.instagram.com/<username>`
+  // (the user profile, NOT a post), and the `explore` adapter sometimes
+  // returns nothing in the url field. We treat a profile-shaped instagram
+  // url (no `/p/` or `/reel/`) as not-a-video and fall back to canonicalUrl.
+  // For all other sites we trust the adapter's url as long as it's non-empty.
+  const adapterUrl = String(row.url ?? row.video_url ?? '');
+  const looksLikeProfile =
+    site === 'instagram' &&
+    adapterUrl !== '' &&
+    !/\/(p|reel|reels|tv|stories)\//.test(adapterUrl);
+  const url = adapterUrl && !looksLikeProfile
+    ? adapterUrl
+    : (id ? canonicalUrl(site, id) : '');
+  // Hard type filter: instagram `explore` returns mixed media_types (photo, video,
+  // carousel). Only video and carousel carry playable media; pure photos are
+  // out of scope for a video_search response. Other sites don't emit a `type`
+  // field, so this is a no-op for them.
+  if (row.type != null) {
+    const t = String(row.type).toLowerCase();
+    if (t !== 'video' && t !== 'reel' && t !== 'carousel' && t !== 'clip') return null;
+  }
   if (!id || !title || !url) return null;
   return {
     platform: site,
     id,
     title,
     url,
-    author: row.author ?? row.user ?? row.nickname,
+    author: row.author ?? row.user ?? row.nickname ?? row.username,
     duration: row.duration,
     // `score` is the universal rank/heat column across adapters; `views/play_count/view_count`
     // are the optional numeric view-count columns some adapters populate. Note the
     // twitter adapter emits `views` as a STRING ("1698153") rather than a number,
-    // so we keep whatever the adapter gave us rather than coercing to a number.
+    // and instagram `explore` emits `likes` (the like_count) and `comments` but no
+    // dedicated play_count for clips — we keep both adapters' choices rather than
+    // coercing to a number.
     views: typeof row.views === 'number'
       ? row.views
       : typeof row.plays === 'number'
