@@ -371,15 +371,15 @@ export function createMcpServer(deps: Deps, ctx: ServerCtx = { clientHost: null 
     async () => runCmd(deps, 'doctor', '', {}, ctx.clientHost));
 
   // video_search: cross-platform search fan-out (3 concurrent sites).
-  // Supported platform values: bilibili, youtube, douyin, tiktok, instagram,
-  // xiaohongshu, weibo, twitter, "all" (all 8), or omit (default 3).
+  // Supported platform values: bilibili, youtube, douyin, tiktok,
+  // xiaohongshu, weibo, twitter, "all" (all 7), or omit (default 3).
   const video = getVideoSubsystem(deps);
   server.registerTool('video_search',
     {
-      description: 'Search videos across supported platforms. Default platforms (when platform is omitted): bilibili, youtube, tiktok. Pass platform="all" to search all 8 supported sites (bilibili, youtube, douyin, tiktok, instagram, xiaohongshu, weibo, twitter). Up to 3 sites are queried in parallel; per-site failures are returned in stats.failed without aborting the whole request.',
+      description: 'Search videos across supported platforms. Default platforms (when platform is omitted): bilibili, youtube, tiktok. Pass platform="all" to search all 7 supported sites (bilibili, youtube, douyin, tiktok, xiaohongshu, weibo, twitter). Up to 3 sites are queried in parallel; per-site failures are returned in stats.failed without aborting the whole request.',
       inputSchema: {
         query: z.string().min(1).describe('Search keywords (non-empty)'),
-        platform: z.string().optional().describe('Site name (bilibili|youtube|douyin|tiktok|instagram|xiaohongshu|weibo|twitter), "all", or omit for the default 3 sites'),
+        platform: z.string().optional().describe('Site name (bilibili|youtube|douyin|tiktok|xiaohongshu|weibo|twitter), "all", or omit for the default 3 sites'),
         limit: z.number().int().min(1).max(30).optional().describe('Results per site (default 10)'),
       },
     },

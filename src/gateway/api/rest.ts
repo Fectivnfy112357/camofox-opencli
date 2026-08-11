@@ -204,7 +204,7 @@ export function createRestHandler(
         if (limit !== undefined && (typeof limit !== 'number' || limit < 1 || limit > 30)) {
           return err(res, 400, 'bad_args', 'limit must be 1..30');
         }
-        if (platform !== undefined && platform !== 'all' && !/^(bilibili|youtube|douyin|tiktok|instagram|xiaohongshu|weibo|twitter)$/.test(platform)) {
+        if (platform !== undefined && platform !== 'all' && !/^(bilibili|youtube|douyin|tiktok|xiaohongshu|weibo|twitter)$/.test(platform)) {
           return err(res, 400, 'INVALID_PLATFORM', `unknown platform: ${platform}`);
         }
         try {

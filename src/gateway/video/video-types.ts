@@ -1,6 +1,6 @@
 export const VIDEO_SITES = [
   'bilibili', 'youtube', 'douyin', 'tiktok',
-  'instagram', 'xiaohongshu', 'weibo', 'twitter',
+  'xiaohongshu', 'weibo', 'twitter',
 ] as const;
 
 export type VideoSite = typeof VIDEO_SITES[number];
