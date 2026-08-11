@@ -214,6 +214,21 @@ export class DownloadPool {
         ? heightSelector(1080)
         : heightSelector(parseInt(quality, 10));
     const proxyInjected = Boolean(this.opts.proxyUrl);
+    // TikTok's WAF (changed 2026-08-09/10) fingerprints the default
+    // python-requests UA and refuses the EJS challenge fetch before
+    // `_solve_challenge_and_set_cookies` can complete → "Unexpected
+    // response from webpage request". Pinning a Chrome 140 UA on
+    // TikTok hosts only — other sites (YouTube / Twitter) don't need
+    // this and overriding their UA can break impersonation that
+    // yt-dlp picks via curl_cffi by default. Tracking:
+    // yt-dlp/yt-dlp#17403 (still open, no upstream fix as of 2026-08-11).
+    const isTiktokHost =
+      host === 'tiktok.com' ||
+      host === 'www.tiktok.com' ||
+      host.endsWith('.tiktok.com');
+    const tiktokUa =
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+      '(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
     const args = [
       // --no-progress: keep stderr clean of the carriage-return progress
       // bar that would shred our per-run log entry into a single line.
@@ -229,6 +244,7 @@ export class DownloadPool {
       // stderr. Disable per-deploy by exporting YTDLP_VERBOSE=0 on
       // the gateway process (see DownloadPoolOptions.verbose).
       ...(this.opts.verbose === false ? [] : ['--verbose']),
+      ...(isTiktokHost ? ['--user-agent', tiktokUa] : []),
       '--cookies', cookies.cookieFilePath,
       '-o', outputTemplate,
       '-f', formatSel,
