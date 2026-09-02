@@ -127,3 +127,17 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+# Network with IPv6 enabled so camoufox-js's impit (hyper-based) can reach
+# the v2raya proxy through the IPv6 address that Docker's embedded DNS
+# returns for host.docker.internal. Without IPv6, impit locked onto the
+# unreachable IPv6 address and every browser launch failed with
+# "Failed to get a public proxy IP address from any API endpoint".
+networks:
+  camofox-opencli_default:
+    name: camofox-opencli_default
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+        - subnet: 2001:db8:1964:ee7a::/64
