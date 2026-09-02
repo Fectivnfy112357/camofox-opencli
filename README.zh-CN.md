@@ -213,7 +213,7 @@ docker compose down && docker compose build --no-cache && docker compose up -d
 
 | 仓库 | 说明 | 许可 |
 |------|------|------|
-| [camofox-browser](https://github.com/Fectivnfy112357/camofox-browser) | Camofox fork，新增 GET cookies 端点 | MIT |
+| [camofox-browser](https://github.com/Fectivnfy112357/camofox-browser) | 基于 jo-inc/camofox-browser (v1.14.0) 的 fork，新增 cookie 导出端点 | MIT |
 | [camofox-shim](https://github.com/Fectivnfy112357/camofox-shim) | WebSocket 桥接层，连接 OpenCLI ↔ Camofox | MIT |
 | [OpenCLI](https://github.com/Fectivnfy112357/OpenCLI) | 163+ 站点适配器 CLI 工具 | MIT |
 
@@ -222,7 +222,7 @@ docker compose down && docker compose build --no-cache && docker compose up -d
 本项目采用 [MIT License](LICENSE)。
 
 子项目许可：
-- **camofox-browser** — 基于 [jo-inc/camofox-browser](https://github.com/jo-inc/camofox-browser)（MIT），fork 新增 `GET /sessions/:userId/cookies` 端点和 `entrypoint-camofox.sh`。
+- **camofox-browser** — [jo-inc/camofox-browser](https://github.com/jo-inc/camofox-browser)（MIT）的 fork。相对上游的额外改动仅为 cookie 导出端点 `GET /sessions/:userId/cookies` 和 `GET /tabs/:tabId/cookies`（commit `f463849`）。此前的 redf0x1 fork 变体曾提供运行时 `toggle-display` 端点；该端点已移除，VNC 现在通过 `CAMOFOX_INTERACTIVE=novnc` 在启动时开启（详见 `docker-compose.yml`）。
 - **camofox-shim** — 原创项目，MIT。
 - **OpenCLI** — 基于 [jackwener/OpenCLI](https://github.com/jackwener/OpenCLI)（MIT），fork 未修改源码，仅作为子模块引用。
 

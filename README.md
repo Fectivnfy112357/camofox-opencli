@@ -248,7 +248,7 @@ docker compose down && docker compose build --no-cache && docker compose up -d
 
 | Repository | Description | License |
 |-----------|------|------|
-| [camofox-browser](https://github.com/Fectivnfy112357/camofox-browser) | Camofox fork, added GET cookies endpoint | MIT |
+| [camofox-browser](https://github.com/Fectivnfy112357/camofox-browser) | Fork of jo-inc/camofox-browser (v1.14.0), adds cookie-export endpoints | MIT |
 | [camofox-shim](https://github.com/Fectivnfy112357/camofox-shim) | WebSocket bridge, OpenCLI ↔ Camofox | MIT |
 | [OpenCLI](https://github.com/Fectivnfy112357/OpenCLI) | 163+ site adapters CLI tool | MIT |
 
@@ -257,7 +257,7 @@ docker compose down && docker compose build --no-cache && docker compose up -d
 This project is licensed under the [MIT License](LICENSE).
 
 Subproject licenses:
-- **camofox-browser** — Based on [jo-inc/camofox-browser](https://github.com/jo-inc/camofox-browser) (MIT), fork adds `GET /sessions/:userId/cookies` endpoint and `entrypoint-camofox.sh`.
+- **camofox-browser** — Fork of [jo-inc/camofox-browser](https://github.com/jo-inc/camofox-browser) (MIT). The fork's only additions over upstream are the cookie-export endpoints `GET /sessions/:userId/cookies` and `GET /tabs/:tabId/cookies` (commit `f463849`). The previous redf0x1-fork variant added a runtime `toggle-display` endpoint; that route is gone — VNC is now started at boot via `CAMOFOX_INTERACTIVE=novnc` (see `docker-compose.yml`).
 - **camofox-shim** — Original project, MIT.
 - **OpenCLI** — Based on [jackwener/OpenCLI](https://github.com/jackwener/OpenCLI) (MIT), fork is unmodified, used as a submodule.
 

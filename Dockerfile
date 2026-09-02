@@ -86,16 +86,17 @@ WORKDIR /build
 # camofox-browser fork directory.
 COPY --from=camofox-browser . /build
 
-# Install once (includes devDeps so tsc is available), build, then prune
-# dev-only entries in place. Avoids re-running the install resolver twice.
-# Use --ignore-scripts to skip the camoufox-js postinstall (now redundant
-# since we vendor the binary explicitly above) but THEN rebuild
-# better-sqlite3 so its native binding is compiled for this image's Node
-# version. Without the explicit rebuild, npm ci --ignore-scripts leaves
-# the .node file out and camofox crashes with "Could not locate the
-# bindings file" on first POST /tabs.
+# Install production deps and rebuild better-sqlite3 against this image's
+# Node version. --ignore-scripts skips the camoufox-js postinstall (we
+# vendor the binary explicitly below) but the explicit rebuild leaves
+# a working native binding; without it camofox crashes with "Could not
+# locate the bindings file" on first POST /tabs.
+#
+# Note: the upstream is now jo-inc/camofox-browser, whose runtime is a
+# single ESM `server.js` (no TypeScript build step). The previous
+# redf0x1 fork needed `npm run build` to compile src/*.ts into
+# dist/src/server.js — that step is gone.
 RUN npm ci --ignore-scripts \
- && npm run build \
  && npm rebuild better-sqlite3 \
  && npm prune --omit=dev
 
@@ -129,7 +130,8 @@ RUN mkdir -p /home/node/.cache/camoufox \
  && chown -R node:node /home/node/.cache
 
 # Trim sources + lockfiles we no longer need at runtime.
-RUN rm -rf node_modules/.cache src tsconfig.json package-lock.json
+# (jo-inc fork has no `src/` or `tsconfig.json` — server.js is shipped as-is.)
+RUN rm -rf node_modules/.cache package-lock.json
 
 # ───────────────────────── Stage 2: opencli (daemon) ─────────────────────────
 FROM node:22-slim AS oc-build

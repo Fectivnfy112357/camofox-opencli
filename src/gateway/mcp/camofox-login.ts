@@ -1,7 +1,5 @@
 import type { Config } from '../core/config.js';
 
-const TOGGLE_RETRIES = 3;
-
 function headers(cfg: Config): Record<string, string> {
   const h: Record<string, string> = { 'Content-Type': 'application/json' };
   if (cfg.camofoxApiKey) h.Authorization = `Bearer ${cfg.camofoxApiKey}`;
@@ -25,10 +23,9 @@ export function rewriteVncHost(vncUrl: string, externalHost: string): string {
 }
 
 /**
- * Ensure at least one tab exists for the userId. The Camofox fork only
- * returns a vncUrl on toggle-display when existing tabs are invalidated
- * (see camofox-browser toggle-display handler); without any tab the toggle
- * does nothing visible.
+ * Ensure at least one tab exists for the userId. The VNC page is mostly
+ * useful once a real page is loaded — open a blank tab if none exist so
+ * the noVNC viewer has something to display.
  */
 async function ensureTab(cfg: Config, f: typeof fetch): Promise<void> {
   try {
@@ -44,12 +41,19 @@ async function ensureTab(cfg: Config, f: typeof fetch): Promise<void> {
   });
 }
 
-async function toggle(cfg: Config, f: typeof fetch, headless: 'virtual' | false): Promise<string> {
-  const res = await f(`${cfg.camofoxUrl}/sessions/${cfg.camofoxUserId}/toggle-display`, {
-    method: 'POST', headers: headers(cfg), body: JSON.stringify({ headless }),
-  });
-  const body = await res.json().catch(() => ({})) as any;
-  return typeof body?.vncUrl === 'string' ? body.vncUrl : '';
+/**
+ * Compute the noVNC URL for the Camofox browser. The upstream is
+ * jo-inc/camofox-browser, which has no runtime toggle-display endpoint
+ * (the previous redf0x1 fork had one). Instead, noVNC is started at boot
+ * via CAMOFOX_INTERACTIVE=novnc, and the noVNC web client is served on
+ * port 6080 by supervisord-managed websockify. The URL is therefore
+ * deterministic: <host>:<6080>/vnc.html.
+ */
+function buildVncUrl(cfg: Config): string {
+  const u = new URL(cfg.camofoxUrl);
+  u.port = '6080';
+  u.pathname = '/vnc.html';
+  return u.toString();
 }
 
 /**
@@ -75,16 +79,16 @@ async function createNavTab(cfg: Config, f: typeof fetch, targetUrl: string): Pr
  * Get a noVNC URL for manual login.
  *
  * Mirrors browser-auth-recovery/scripts/camofox-vnc-login.py:
- *   1. ensure_tabs         — toggle-display only yields vncUrl with a real tab
- *   2. toggle virtual      — first attempt to obtain vncUrl
- *   3. cycle false→virtual — if (2) yields nothing (VNC already active, no
- *                            tab was invalidated), force a fresh server by
- *                            toggling headful then virtual, up to 3 retries
- *   4. create_tab+navigate — when opts.url is set, opens the page so the
- *                            user lands directly on the auth flow
- *   5. rewrite host        — swap localhost/127.0.0.1 for the public host
+ *   1. ensure_tabs        — open a tab if none exist so the VNC viewer
+ *                           has something to display
+ *   2. derive vnc URL     — jo-inc has no toggle-display; the URL is
+ *                           <host>:6080/vnc.html (set up at boot via
+ *                           CAMOFOX_INTERACTIVE=novnc)
+ *   3. create_tab+navigate — when opts.url is set, opens the page so the
+ *                           user lands directly on the auth flow
+ *   4. rewrite host       — swap localhost/127.0.0.1 for the public host
  *
- * Throws if no vncUrl can be obtained within the retry budget.
+ * Throws if no external VNC host can be determined.
  */
 export async function getVncUrl(
   cfg: Config,
@@ -93,31 +97,16 @@ export async function getVncUrl(
 ): Promise<string> {
   await ensureTab(cfg, fetchImpl);
 
-  // First attempt — toggling to virtual (the supported mode).
-  let vnc = await toggle(cfg, fetchImpl, 'virtual');
-
-  if (!vnc) {
-    // No vncUrl returned — VNC may already be active or tab wasn't
-    // invalidated. Cycle headful→virtual to force a fresh VNC server, per
-    // browser-auth-recovery skill.
-    try {
-      await toggle(cfg, fetchImpl, false); // may 400 if already headful
-    } catch { /* tolerated */ }
-    for (let i = 0; i < TOGGLE_RETRIES && !vnc; i++) {
-      vnc = await toggle(cfg, fetchImpl, 'virtual').catch(() => '');
-    }
-  }
-
-  if (!vnc) {
-    throw new Error('could not obtain vncUrl after retries');
-  }
-
-  // The skill navigates to opts.url after extracting vncUrl. Doing it in
-  // this order means tab invalidation from toggle has settled before we
-  // open a new tab.
+  // If a target URL is given, open a tab navigated to it BEFORE we hand
+  // the noVNC URL back. The previous toggle-display flow invalidated
+  // existing tabs on demand; with jo-inc we keep tabs alive and instead
+  // rely on the operator (or the caller) to have the desired page open
+  // when the operator clicks the VNC link.
   if (opts.url) {
     await createNavTab(cfg, fetchImpl, opts.url);
   }
+
+  const vnc = buildVncUrl(cfg);
 
   const clientHost = opts.clientHost?.split(':')[0]?.trim();
   const configuredHost = cfg.publicVncHost?.split(':')[0]?.trim();

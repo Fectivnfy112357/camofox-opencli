@@ -40,7 +40,7 @@ No root-level linter is configured.
 
 Three Node/TS components inside one container, plus the Camofox browser fork:
 
-1. **Camofox** (`/opt/camofox/`, contributed by the `camofox-browser` sibling repo) — Firefox fork with a custom `GET /sessions/:userId/cookies` endpoint. Entry: `node --max-old-space-size=128 dist/src/server.js`. Port 9377.
+1. **Camofox** (`/opt/camofox/`, contributed by the `camofox-browser` sibling repo) — anti-detection Firefox wrapper. Upstream is [jo-inc/camofox-browser](https://github.com/jo-inc/camofox-browser) (MIT); the fork at `Fectivnfy112357/camofox-browser` adds `GET /sessions/:userId/cookies` and `GET /tabs/:tabId/cookies` on top of the upstream's `POST /sessions/:userId/cookies`. Entry: `node --max-old-space-size=128 server.js` (single ESM file, no build step). Port 9377.
 2. **opencli-daemon** (`/opt/opencli/`) — the upstream CLI's WebSocket daemon on port 19825. Drives 100+ site adapters.
 3. **shim** (`dist/shim/`, in this repo) — WebSocket *client* mode. Connects to `OPENCLI_DAEMON_WS`, impersonates a Chrome Extension, translates `DaemonCommand` to Camofox REST calls. **No port of its own.**
 4. **gateway** (`dist/gateway/`, in this repo) — HTTP server on port 8080. Auth via `GATEWAY_API_KEY` Bearer. Single `McpServer` + `StreamableHTTPServerTransport` created per request (stateless) — see the "MCP tool quirks" note on why.

@@ -106,7 +106,7 @@ Chrome Extension 通过 WebSocket 连接 daemon 的 `/ext` 端点：
 | `DELETE /sessions/:userId` | DELETE | 删除会话 | `close-window` |
 | `/health` | GET | 健康检查 | — |
 
-> **注意**：`GET /sessions/:userId/cookies` 是我们向 Camofox fork 新增的端点（约 20 行代码），用于获取包括 HttpOnly 在内的全部 Cookie。
+> **注意**：`GET /sessions/:userId/cookies` 和 `GET /tabs/:tabId/cookies` 是我们向 [jo-inc/camofox-browser](https://github.com/jo-inc/camofox-browser) fork 新增的端点（commit `f463849`），用于获取包括 HttpOnly 在内的全部 Cookie。
 
 ## 5. Shim 实现
 
@@ -155,7 +155,7 @@ Stage 1: 编译 OpenCLI (npm ci → npm run build) → /opt/opencli/
 Stage 2: 编译 Shim (npm ci → npx tsc) → /opt/shim/
 Stage 3: 基于 camofox-browser 镜像
   → 安装 supervisor
-  → 入口脚本 → dist/src/server.js (commonjs 编译产物)
+  → 入口脚本 → server.js (ESM 模块，无需编译)
   → 复制 opencli + shim
   → supervisord 管理多进程
 ```
@@ -219,11 +219,11 @@ CAMOFOX_USER_ID=fectivnfy
 | 服务器一键部署 | ✅ | `camofox-opencli/deploy.sh` |
 | `opencli bilibili search` | ✅ | 验证 20 条结果 |
 | Hermes 浏览器能力 | ✅ | navigate/click/type/scroll/screenshot/cookies 全部正常 |
-| VNC 登录 | ✅ | toggle-display API 生成 noVNC 链接 |
+| VNC 登录 | ✅ | `CAMOFOX_INTERACTIVE=novnc` 启动时开启 noVNC，gateway 直接构造 `host:6080/vnc.html` 链接 |
 
 ### 已知问题
 
-1. **Camofox fork 的 `dist/src/` 未编译**：基础镜像 `ghcr.io/redf0x1/camofox-browser:latest` 的 `server.js` 是 ESM 源码但 `package.json` 声明 commonjs，需要通过 `dist/src/server.js` 运行
+1. ~~**Camofox fork 的 `dist/src/` 未编译**~~：已切到 [jo-inc/camofox-browser](https://github.com/jo-inc/camofox-browser) 上游（fork `Fectivnfy112357/camofox-browser` 同步对齐），入口是单体 ESM `server.js`，无需编译
 2. **Camofox 每小时被 IDLE_TIMEOUT 回收**：tabId 失效,需 Shim 会话自愈(已实现)
 
 ## 10. 关键决策记录
@@ -231,8 +231,8 @@ CAMOFOX_USER_ID=fectivnfy
 | # | 决策 | 原因 |
 |---|------|------|
 | D1 | Shim 作为 WebSocket 客户端而非 HTTP 服务器 | 避免与 OpenCLI daemon 抢端口 19825 |
-| D2 | 使用 Camofox fork 而非 patch 基础镜像 | 最小改动,20 行 GET cookies 端点 |
-| D3 | `dist/src/server.js` 作为 Camofox 入口 | 基础镜像的 `server.js` 是 ESM 无法在 commonjs 包内运行 |
+| D2 | 使用 Camofox fork 而非 patch 基础镜像 | 最小改动,在 jo-inc 上游基础上加 `GET /sessions/:userId/cookies` 和 `GET /tabs/:tabId/cookies`（commit `f463849`） |
+| D3 | `server.js` 作为 Camofox 入口 | jo-inc 上游是 ESM 单体模块，运行时直接 `node server.js`（不再有 `dist/src/server.js` 编译产物） |
 | D4 | supervisord 管理多进程 | 同一容器内运行 Camofox + daemon + Shim + Gateway |
 | D5 | 不支持 CDP 命令 | Camofox 是 Firefox 内核,社交平台适配器不依赖 CDP |
 | D6 | Cookie 用 evaluate fallback | GET cookies 端点不可用时用 `document.cookie`(不含 HttpOnly) |
@@ -320,7 +320,7 @@ git pull → sync submodule → docker compose build → up -d
 
 ## 13. 参考
 - [OpenCLI fork](https://github.com/Fectivnfy112357/OpenCLI) — 100+ 平台适配器
-- [Camofox fork](https://github.com/Fectivnfy112357/camofox-browser) — 含 GET cookies 端点
+- [Camofox fork](https://github.com/Fectivnfy112357/camofox-browser) — 基于 [jo-inc/camofox-browser](https://github.com/jo-inc/camofox-browser)，新增 GET cookies 端点（commit `f463849`）
 - [Camofox Shim](https://github.com/Fectivnfy112357/camofox-shim) — WebSocket 客户端桥接
 - [Camofox OpenCLI](https://github.com/Fectivnfy112357/camofox-opencli) — 部署聚合仓库(deploy.sh/supervisord/docker-compose)
 - [Hermes Agent](https://github.com/NousResearch/hermes-agent) — 浏览器工具后端
