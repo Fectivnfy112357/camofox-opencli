@@ -190,7 +190,8 @@ RUN set -e \
 # dash-to-mp4). Without it yt-dlp returns "m3u8 download detected but
 # ffmpeg could not be found" and the gateway surfaces YT_DLP_FAILED.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        xvfb x11vnc python3-websockify curl ca-certificates \
+        xvfb x11vnc python3-websockify net-tools xauth procps \
+        curl ca-certificates \
         supervisor git yt-dlp python3-pip ffmpeg \
         libgtk-3-0 libdbus-glib-1-2 libxt6 libx11-xcb1 \
         libasound2 libdrm2 libgbm1 libxcomposite1 libxcursor1 \
@@ -240,17 +241,22 @@ RUN set -e; \
 # days" failures (B 站 412, youtube signature-solver deprecation). The
 # `yt-dlp --version` we re-check on the next line is the source of truth.
 
-# noVNC static client (re-installed here so the runtime layer is self-
-# contained even if Stage 1 changed in the future). Same tarball fallback
-# as cb-build (some base images block git-over-HTTPS).
+# noVNC static client — must live at /usr/share/novnc because
+# plugins/vnc/vnc-watcher.sh (the noVNC supervisor the jo-inc fork
+# spawns when ENABLE_VNC=1 / CAMOFOX_INTERACTIVE=novnc are set) hard-
+# codes that path and exits if the directory is missing. Installing
+# under /opt/noVNC, where cb-build also fetches a copy, would leave
+# the watcher with nothing to serve and the vnc plugin would log
+#   [vnc-watcher] ERROR: /usr/share/novnc not found; noVNC cannot start
+# even though x11vnc and websockify are installed.
 RUN set -e; \
-    if git clone --depth 1 https://github.com/novnc/noVNC.git /opt/noVNC 2>/dev/null; then \
-        rm -rf /opt/noVNC/.git; \
+    if git clone --depth 1 https://github.com/novnc/noVNC.git /usr/share/novnc 2>/dev/null; then \
+        rm -rf /usr/share/novnc/.git; \
     else \
         echo "git clone failed, falling back to codeload tarball"; \
         curl -fsSL https://codeload.github.com/novnc/noVNC/tar.gz/refs/heads/master -o /tmp/novnc.tgz \
-        && mkdir -p /opt/noVNC \
-        && tar -xzf /tmp/novnc.tgz -C /opt/noVNC --strip-components=1 \
+        && mkdir -p /usr/share/novnc \
+        && tar -xzf /tmp/novnc.tgz -C /usr/share/novnc --strip-components=1 \
         && rm /tmp/novnc.tgz; \
     fi
 
