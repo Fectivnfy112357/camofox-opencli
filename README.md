@@ -193,13 +193,6 @@ docker compose build --no-cache
 docker compose up -d
 ```
 
-If you only want OpenCLI / Shim changes to hot-reload without rebuilding the
-image, prefer `--no-build`:
-
-```bash
-./deploy.sh --no-build
-```
-
 ## Usage
 
 ```bash

@@ -81,7 +81,7 @@ services:
       # at startup. If a future camoufox-js release starts pulling a new
       # resource on launch, reintroduce HTTP_PROXY=http://host.docker.internal:20172
       # — at that point revert with caution and re-add the resources to the
-      # runtime-addons context in deploy.sh.
+      # camoufox-bin/ pre-baking step in .github/workflows/publish.yml.
       # Shim
       CAMOFOX_URL: "http://localhost:9377"
       CAMOFOX_USER_ID: "fectivnfy"

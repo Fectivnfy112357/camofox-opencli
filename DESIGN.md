@@ -216,7 +216,7 @@ CAMOFOX_USER_ID=fectivnfy
 | Shim `network-capture-*` | ✅ | 返回成功(空数据)而非 unsupported,让 opencli browser open 走通 |
 | Gateway REST + MCP | ✅ | 16 工具全部正常,20 并发不触发熔断 |
 | Gateway 日志 | ✅ | JSONL 写到宿主 `logs/gateway/gateway.log` |
-| 服务器一键部署 | ✅ | `camofox-opencli/deploy.sh` |
+| 服务器一键部署 | ✅ | `docker compose pull && docker compose up -d`（拉 ghcr 镜像后直接启） |
 | `opencli bilibili search` | ✅ | 验证 20 条结果 |
 | Hermes 浏览器能力 | ✅ | navigate/click/type/scroll/screenshot/cookies 全部正常 |
 | VNC 登录 | ✅ | `CAMOFOX_INTERACTIVE=novnc` 启动时开启 noVNC，gateway 直接构造 `host:6080/vnc.html` 链接 |
@@ -290,15 +290,17 @@ Claude Code MCP 工具 UI 无法填顶层数组字段,值退到 `args.positional
 
 ## 12. 服务器部署
 
-### 12.1 deploy.sh
+### 12.1 部署模式：纯 docker compose（无 deploy.sh）
 
-主仓库根 `camofox-opencli/deploy.sh` 一键部署:
-```
-git pull → sync submodule → docker compose build → up -d
-       → 健康检查 → 8 并发 /health 探活 → tail 日志(可选)
+仓库不再保留 `deploy.sh`。服务器只保留 `docker-compose.yml` + 持久化的 `data/` 目录，镜像从 ghcr.io 拉取：
+
+```bash
+# 在 /www/dk_project/dk_app/camofox-opencli/ 下
+docker compose pull camofox    # 拉 ghcr.io/fectivnfy112357/camofox-opencli:latest
+docker compose up -d camofox   # 重建容器（配置变更也会被 docker compose 应用）
 ```
 
-支持 `--no-build`(源码未变秒级重启)、`--logs`(部署完跟踪日志)。
+新版本发布 → 拉新镜像 → recreate 容器，单条命令完成。源码完全在 CI（`.github/workflows/publish.yml`）里构建，服务器上不再有 Dockerfile / 源码。
 
 ### 12.2 路径与端口
 
@@ -322,6 +324,6 @@ git pull → sync submodule → docker compose build → up -d
 - [OpenCLI fork](https://github.com/Fectivnfy112357/OpenCLI) — 100+ 平台适配器
 - [Camofox fork](https://github.com/Fectivnfy112357/camofox-browser) — 基于 [jo-inc/camofox-browser](https://github.com/jo-inc/camofox-browser)，新增 GET cookies 端点（commit `f463849`）
 - [Camofox Shim](https://github.com/Fectivnfy112357/camofox-shim) — WebSocket 客户端桥接
-- [Camofox OpenCLI](https://github.com/Fectivnfy112357/camofox-opencli) — 部署聚合仓库(deploy.sh/supervisord/docker-compose)
+- [Camofox OpenCLI](https://github.com/Fectivnfy112357/camofox-opencli) — 部署聚合仓库(supervisord/docker-compose,镜像从 ghcr 拉取)
 - [Hermes Agent](https://github.com/NousResearch/hermes-agent) — 浏览器工具后端
 - [agent-reach](https://github.com/Panniantong/Agent-Reach) — 社交媒体数据源

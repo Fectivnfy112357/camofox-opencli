@@ -40,8 +40,7 @@ RUN npm ci --ignore-scripts \
     && npm prune --omit=dev
 
 # Pre-stage Camoufox: download on the Actions runner (not inside the
-# build) so the v2raya-shared-IP rate limit never bites. Sources match
-# what deploy.sh uses locally:
+# build) so the v2raya-shared-IP rate limit never bites.
 #   - Camoufox binary from daijro/camoufox (zip name has arch suffix)
 #   - GeoLite2-City.mmdb from P3TERX/GeoLite.mmdb
 #   - version.json synthesized (camoufox-js reads it as a sidecar)
