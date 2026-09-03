@@ -29,7 +29,7 @@ function makeDeps(tmpDir: string): Deps {
     cfg,
     manifest,
     run: vi.fn(),
-    vnc: vi.fn(),
+
     tempStore: new TempStore({ tmpDir, ttlMs: 60_000 }),
   };
 }

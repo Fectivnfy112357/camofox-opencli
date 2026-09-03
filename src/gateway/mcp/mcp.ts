@@ -158,17 +158,15 @@ async function runCmd(
   const r = await deps.run(site, command, argv, { passthrough });
   const ms = Date.now() - t0;
   if (isAuthRequired(r)) {
-    const url = (r.data as { error?: { help?: string } }).error?.help?.match(/https?:\/\/\S+/)?.[0];
-    const vncUrl = await deps.vnc({ url, clientHost: clientHost ?? undefined });
-    log.warn('mcp.run.auth_required', { site, command, ms, vncUrl });
+    const helpUrl = (r.data as { error?: { help?: string } }).error?.help;
+    log.warn('mcp.run.auth_required', { site, command, ms, helpUrl });
     return {
       isError: true,
       content: [{
         type: 'text',
         text: JSON.stringify({
           error: (r.data as { error: unknown }).error,
-          vncUrl,
-          hint: 'Open the VNC link, log in, then re-run this command.',
+          hint: 'Log in to the site, then re-run this command.',
         }),
       }],
     };
@@ -205,7 +203,7 @@ export function getVideoSubsystem(deps: Deps): VideoSubsystem {
   const camofoxKey = process.env.CAMOFOX_API_KEY ?? '';
   // cfg.camofoxUserId is the authoritative user; the CAMOFOX_USER_ID env var
   // exists for parity with camofox-client / shim but defaults to 'default'
-  // there. The gateway's persisted profile is the one the VNC /mcp login
+  // there. The gateway's persisted profile is the one login flows write
   // writes cookies into — that's `fectivnfy` in this deployment, so we trust
   // the config-driven value here.
   const userId = deps.cfg.camofoxUserId || process.env.CAMOFOX_USER_ID || 'default';
@@ -351,8 +349,8 @@ export function createMcpServer(deps: Deps, ctx: ServerCtx = { clientHost: null 
         '(sort, time, type, etc.) — server validates them against that site\'s ' +
         'manifest and returns a clear error if you send an unknown key. Aliases ' +
         'for the primary query positional (keyword/q/text) are accepted.\n\n' +
-        'Returns the opencli envelope. When the site requires login the response ' +
-        'includes a `vncUrl` you should surface to the user.',
+        'Returns the opencli envelope. When the site requires login, the response ' +
+        'surfaces a clear `LOGIN_REQUIRED` error -- retry after authenticating.',
       inputSchema: {
         site: z.string().describe('Site slug (e.g. "bilibili", "twitter", "douyin")'),
         query: z.string().describe('Primary search term — server resolves to the adapter\'s positional name'),
@@ -361,10 +359,6 @@ export function createMcpServer(deps: Deps, ctx: ServerCtx = { clientHost: null 
       },
     },
     async ({ site, query, limit, extras }) => handleSearch(deps, site, query, limit, extras ?? {}, ctx.clientHost));
-
-  server.registerTool('login',
-    { description: 'Get a noVNC link to log into a site manually', inputSchema: { url: z.string().optional() } },
-    async ({ url }) => ({ content: [{ type: 'text', text: JSON.stringify({ vncUrl: await deps.vnc({ url, clientHost: ctx.clientHost ?? undefined }) }) }] }));
 
   server.registerTool('doctor',
     { description: 'Run opencli doctor', inputSchema: {} },

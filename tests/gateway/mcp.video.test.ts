@@ -29,7 +29,6 @@ function makeDeps(tmpDir: string): Deps {
     cfg,
     manifest,
     run: vi.fn().mockResolvedValue({ ok: true, data: [] }),
-    vnc: vi.fn(),
     tempStore,
   };
 }

@@ -13,7 +13,6 @@ export interface Deps {
   cfg: Config;
   manifest: Manifest;
   run: (site: string, command: string, argv: string[], opts?: { passthrough?: boolean }) => Promise<RunResult>;
-  vnc: (opts: { url?: string; clientHost?: string }) => Promise<string>;
   tempStore?: TempStore;
 }
 
@@ -136,10 +135,8 @@ export function createRestHandler(
         if (!r.ok) {
           const data = r.data as { error?: { code?: string; help?: string } } | undefined;
           if (data?.error?.code === 'AUTH_REQUIRED') {
-            const url = data.error.help?.match(/https?:\/\S+/)?.[0];
-            const vncUrl = await deps.vnc({ url, clientHost: extractHost(req) ?? undefined });
-            log.warn('rest.site_cmd.auth_required', { site, command, vncUrl });
-            return ok(res, { error: data.error, vncUrl, hint: 'Open the VNC link, log in, then re-run.' });
+            log.warn('rest.site_cmd.auth_required', { site, command, url: data.error?.help });
+            return ok(res, { error: data.error, hint: 'Log in to the site, then re-run the command.' });
           }
           log.warn('rest.site_cmd.error', { site, command, stderr: r.stderr });
           return err(res, 502, 'opencli_error', r.stderr ?? 'unknown');
@@ -178,21 +175,14 @@ export function createRestHandler(
         if (!r.ok) {
           const data = r.data as { error?: { code?: string; help?: string } } | undefined;
           if (data?.error?.code === 'AUTH_REQUIRED') {
-            const url = data.error.help?.match(/https?:\/\/\S+/)?.[0];
-            const vncUrl = await deps.vnc({ url, clientHost: extractHost(req) ?? undefined });
-            log.warn('rest.run.auth_required', { site, command, vncUrl });
-            return ok(res, { error: data.error, vncUrl, hint: 'Open the VNC link, log in, then re-run /run.' });
+            log.warn('rest.run.auth_required', { site, command, url: data.error?.help });
+            return ok(res, { error: data.error, hint: 'Log in to the site, then re-run /run.' });
           }
           log.warn('rest.run.error', { site, command, stderr: r.stderr });
           return err(res, 502, 'opencli_error', r.stderr ?? 'unknown');
         }
         log.info('rest.run.done', { site, command, ok: true });
         return ok(res, r.data);
-      }
-      if (method === 'POST' && path === '/login') {
-        const b = await readBody(req);
-        const vncUrl = await deps.vnc({ url: b.url, clientHost: extractHost(req) ?? undefined });
-        return ok(res, { vncUrl });
       }
       if (method === 'POST' && path === '/video/search') {
         if (!video) return err(res, 503, 'unavailable', 'video subsystem not configured');

@@ -84,7 +84,6 @@ describe('REST /video/* auth + happy path', () => {
         cfg: makeCfg(tmpDir, 'test-key'),
         manifest: makeManifest(),
         run: vi.fn(),
-        vnc: vi.fn(),
         tempStore: new TempStore({ tmpDir, ttlMs: 60_000 }),
       };
       handler = createRestHandler(deps, {

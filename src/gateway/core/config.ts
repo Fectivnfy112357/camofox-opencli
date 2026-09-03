@@ -6,9 +6,6 @@ export interface Config {
   camofoxUrl: string;
   camofoxApiKey: string | null;
   camofoxUserId: string;
-  /** External hostname (and optional port) for VNC URLs returned to
-   *  clients. Falls back to camofoxUrl's hostname or request Host header. */
-  publicVncHost: string | null;
   /** Directory for cookie files, downloaded videos, etc.
    *  Defaults to /tmp because the gateway process's cwd is unreliable under
    *  supervisord (no `directory=` set) and `./tmp` would resolve to `/tmp`
@@ -41,7 +38,6 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     camofoxUrl: (env.CAMOFOX_URL?.trim() || 'http://localhost:9377').replace(/\/$/, ''),
     camofoxApiKey: env.CAMOFOX_API_KEY?.trim() || null,
     camofoxUserId: env.CAMOFOX_USER_ID?.trim() || 'default',
-    publicVncHost: env.PUBLIC_VNC_HOST?.trim() || env.PUBLIC_HOST?.trim() || null,
     tmpDir: env.GATEWAY_TMP_DIR?.trim() || '/tmp',
     cookieDir: env.GATEWAY_COOKIE_DIR?.trim() || '/opt/gateway/cookies',
     outputDir: env.GATEWAY_OUTPUT_DIR?.trim() || '/opt/gateway/tmp',

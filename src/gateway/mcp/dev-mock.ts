@@ -14,7 +14,6 @@
 import { createServer } from 'node:http';
 import { loadConfig } from '../core/config.js';
 import { loadManifest } from '../core/manifest.js';
-import { getVncUrl } from './camofox-login.js';
 import { createRestHandler, type Deps } from '../api/rest.js';
 import { createMcpServer } from './mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -62,7 +61,6 @@ const deps: Deps = {
   cfg,
   manifest,
   run: mockRun,
-  vnc: async () => 'http://localhost:6080/vnc.html',
 };
 
 const rest = createRestHandler(deps);

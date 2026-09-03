@@ -9,7 +9,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const manifest = loadManifest(join(here, '..', '__fixtures__', 'manifest.sample.json'));
 const cfg: Config = { port: 8080, apiKey: 'secret', opencliBin: 'opencli', manifestPath: '/x',
   camofoxUrl: 'http://h:9377', camofoxApiKey: null, camofoxUserId: 'u',
-  publicVncHost: 'textvision.top', tmpDir: '/tmp', logDir: '/tmp', logLevel: 'info',
+  tmpDir: '/tmp', logDir: '/tmp', logLevel: 'info',
   cookieDir: '/tmp', outputDir: '/tmp',
   proxyUrl: null,
 };
@@ -28,7 +28,7 @@ function mockReq(method: string, url: string, auth?: string, body?: unknown) {
 
 const deps = { cfg, manifest,
   run: vi.fn(async () => ({ ok: true, data: { rows: [1] } })),
-  vnc: vi.fn(async () => 'http://h:6080/vnc') };
+};
 
 describe('createRestHandler', () => {
   const h = createRestHandler(deps as any);
@@ -91,7 +91,7 @@ describe('createRestHandler', () => {
     expect(deps.run).toHaveBeenLastCalledWith('browser', 'open', ['work', 'open', 'https://x.com'], { passthrough: true });
   });
 
-  it('POST /run auto-returns vncUrl on AUTH_REQUIRED', async () => {
+  it('POST /run auto-returns LOGIN_REQUIRED on auth failure', async () => {
     const orig = deps.run;
     deps.run = vi.fn(async () => ({
       ok: false,
@@ -110,8 +110,6 @@ describe('createRestHandler', () => {
       expect(res.statusCode).toBe(200);
       expect(env.ok).toBe(true);
       expect(env.data.error.code).toBe('AUTH_REQUIRED');
-      expect(env.data.vncUrl).toBe('http://h:6080/vnc');
-      expect(deps.vnc).toHaveBeenCalledWith({ url: 'https://www.bilibili.com', clientHost: undefined });
     } finally {
       deps.run = orig;
     }
@@ -131,29 +129,7 @@ describe('createRestHandler', () => {
     }
   });
 
-  it('POST /run passes clientHost from X-Forwarded-Host to vnc', async () => {
-    const orig = deps.run;
-    deps.run = vi.fn(async () => ({
-      ok: false,
-      data: { ok: false, error: { code: 'AUTH_REQUIRED', help: 'go to https://x.com' }, exitCode: 77 },
-      stderr: '',
-    }));
-    try {
-      const res = mockRes();
-      const req = mockReq('POST', '/run', 'Bearer secret', { site: 'bilibili', command: 'search', args: { keyword: 'x' } });
-      (req.headers as any)['x-forwarded-host'] = 'people.example.com:443,proxy.example';
-      await h(req, res as any);
-      expect(deps.vnc).toHaveBeenCalledWith({ url: 'https://x.com', clientHost: 'people.example.com:443' });
-    } finally {
-      deps.run = orig;
-    }
-  });
 
-  it('POST /login returns vncUrl', async () => {
-    const res = mockRes();
-    await h(mockReq('POST', '/login', 'Bearer secret', { url: 'http://site' }), res as any);
-    expect(JSON.parse(res.body).data.vncUrl).toBe('http://h:6080/vnc');
-  });
 
   it('POST /sites/:site/:command forwards args and dispatches', async () => {
     const res = mockRes();
@@ -180,7 +156,7 @@ describe('createRestHandler', () => {
     expect(JSON.parse(res.body).error.message).toMatch(/passthrough/);
   });
 
-  it('POST /sites/:site/:command auto-returns vncUrl on AUTH_REQUIRED', async () => {
+  it('POST /sites/:site/:command auto-returns LOGIN_REQUIRED on auth failure', async () => {
     const orig = deps.run;
     deps.run = vi.fn(async () => ({
       ok: false,
@@ -194,7 +170,7 @@ describe('createRestHandler', () => {
       const env = JSON.parse(res.body);
       expect(res.statusCode).toBe(200);
       expect(env.ok).toBe(true);
-      expect(env.data.vncUrl).toBe('http://h:6080/vnc');
+      expect(env.data.error.code).toBe('AUTH_REQUIRED');
     } finally {
       deps.run = orig;
     }

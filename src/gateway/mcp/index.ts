@@ -2,7 +2,6 @@ import { createServer } from 'node:http';
 import { loadConfig } from '../core/config.js';
 import { loadManifest } from '../core/manifest.js';
 import { runOpencli } from '../core/opencli.js';
-import { getVncUrl } from './camofox-login.js';
 import { createRestHandler, type Deps } from '../api/rest.js';
 import { createMcpServer } from './mcp.js';
 import { build as buildSearchCache, size as searchCacheSize } from '../core/search-cache.js';
@@ -37,7 +36,6 @@ const deps: Deps = {
   cfg,
   manifest,
   run: (site, command, argv, opts) => runOpencli(cfg.opencliBin, site, command, argv, opts),
-  vnc: (opts) => getVncUrl(cfg, opts),
   tempStore,
 };
 
