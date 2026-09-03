@@ -18,13 +18,13 @@ import type { CamofoxCookie } from '../video/video-cookies.js';
 
 export const PRIMARY_SITES = [
   'xiaohongshu', 'bilibili', 'twitter', 'reddit', 'zhihu',
-  'douyin', 'weibo', 'youtube', 'hackernews', 'github',
+  'douyin', 'weibo', 'youtube', 'hackernews',
 ];
 
 export function buildSiteToolDescription(manifest: Manifest, site: string): string {
   const cmds = manifest.getSiteHelp(site);
   const lines = cmds.map((c) => `- ${c.name} — ${c.description}`);
-  return `Run an opencli command for ${site}. Available commands:\n${lines.join('\n')}`;
+  return `OpenCLI 社交媒体专用——在 ${site} 上执行 opencli 命令。\n\n可用命令：\n${lines.join('\n')}\n\n**不用于通用浏览器操作**（页面交互、点击、填表、导航等请用浏览器工具）。`;
 }
 
 type ToolResult = {
@@ -325,32 +325,33 @@ export function getVideoSubsystem(deps: Deps): VideoSubsystem {
 export function createMcpServer(deps: Deps, ctx: ServerCtx = { clientHost: null }): McpServer {
   const server = new McpServer({ name: 'opencli-gateway', version: '0.1.0' });
 
-  server.registerTool('list_sites',
-    { description: 'List/search available opencli sites (omit q for all)', inputSchema: { q: z.string().optional() } },
+  server.registerTool('opencli_list_sites',
+    { description: 'OpenCLI 工具：列出/搜索 opencli 支持的社交媒体站点（173+ 个）。\n\n**不用于通用浏览器操作**（页面交互、点击、填表、导航等请用浏览器工具）。', inputSchema: { q: z.string().optional() } },
     async ({ q }) => ({ content: [{ type: 'text', text: JSON.stringify(deps.manifest.searchSites(q)) }] }));
 
-  server.registerTool('site_help',
-    { description: 'Show all commands + args for a site', inputSchema: { site: z.string() } },
+  server.registerTool('opencli_site_help',
+    { description: 'OpenCLI 工具：查询某社交媒体站点在 opencli 里支持的所有命令和参数。\n\n**不用于通用浏览器操作**（页面交互、点击、填表、导航等请用浏览器工具）。', inputSchema: { site: z.string() } },
     async ({ site }) => ({ content: [{ type: 'text', text: JSON.stringify(deps.manifest.getSiteHelp(site)) }] }));
 
-  server.registerTool('run_command',
-    { description: 'Run any opencli command', inputSchema: { site: z.string(), command: z.string(), args: z.record(z.string(), z.unknown()).optional() } },
+  server.registerTool('opencli_run_command',
+    { description: 'OpenCLI 工具：调用 opencli 的 `<site> <command>` 语法在某个社交媒体站点执行命令。\n\n**不用于通用浏览器操作**（页面交互、点击、填表、导航等请用浏览器工具）。', inputSchema: { site: z.string(), command: z.string(), args: z.record(z.string(), z.unknown()).optional() } },
     async ({ site, command, args }) => runCmd(deps, site, command, args ?? {}, ctx.clientHost));
 
   // Cross-site search wrapper. Accepts a normalised {site, query, limit, extras}
   // shape and uses the search-cache to map `query` onto whatever the adapter
   // actually calls its primary positional (query/keyword/q/text/term).
-  server.registerTool('search',
+  server.registerTool('opencli_search',
     {
       description:
-        'Run a search across any of the 173 supported sites. Pass the site slug ' +
+        'OpenCLI 社交媒体专用搜索——在 173 个支持的社交平台（bilibili/douyin/twitter 等）执行内容搜索。Pass the site slug ' +
         'and a `query` string. `limit` is shorthand for the most common --limit ' +
         'flag (always an int). `extras` holds any other adapter-specific args ' +
         '(sort, time, type, etc.) — server validates them against that site\'s ' +
         'manifest and returns a clear error if you send an unknown key. Aliases ' +
         'for the primary query positional (keyword/q/text) are accepted.\n\n' +
         'Returns the opencli envelope. When the site requires login, the response ' +
-        'surfaces a clear `LOGIN_REQUIRED` error -- retry after authenticating.',
+        'surfaces a clear `LOGIN_REQUIRED` error -- retry after authenticating.\n\n' +
+        '**不用于通用浏览器操作**（页面交互、点击、填表、导航等请用浏览器工具）。',
       inputSchema: {
         site: z.string().describe('Site slug (e.g. "bilibili", "twitter", "douyin")'),
         query: z.string().describe('Primary search term — server resolves to the adapter\'s positional name'),
@@ -360,17 +361,17 @@ export function createMcpServer(deps: Deps, ctx: ServerCtx = { clientHost: null 
     },
     async ({ site, query, limit, extras }) => handleSearch(deps, site, query, limit, extras ?? {}, ctx.clientHost));
 
-  server.registerTool('doctor',
-    { description: 'Run opencli doctor', inputSchema: {} },
+  server.registerTool('opencli_doctor',
+    { description: 'OpenCLI 工具：运行 opencli doctor 做社交媒体适配器自检。\n\n**不用于通用浏览器操作**（页面交互、点击、填表、导航等请用浏览器工具）。', inputSchema: {} },
     async () => runCmd(deps, 'doctor', '', {}, ctx.clientHost));
 
   // video_search: cross-platform search fan-out (3 concurrent sites).
   // Supported platform values: bilibili, youtube, douyin, tiktok,
   // xiaohongshu, weibo, twitter, "all" (all 7), or omit (default 3).
   const video = getVideoSubsystem(deps);
-  server.registerTool('video_search',
+  server.registerTool('opencli_video_search',
     {
-      description: 'Search videos across supported platforms. Default platforms (when platform is omitted): bilibili, youtube, tiktok. Pass platform="all" to search all 7 supported sites (bilibili, youtube, douyin, tiktok, xiaohongshu, weibo, twitter). Up to 3 sites are queried in parallel; per-site failures are returned in stats.failed without aborting the whole request.',
+      description: 'OpenCLI 社交媒体专用视频搜索——bilibili/youtube/douyin/tiktok/xiaohongshu/weibo/twitter 多平台并发。Default platforms (when platform is omitted): bilibili, youtube, tiktok. Pass platform="all" to search all 7 supported sites (bilibili, youtube, douyin, tiktok, xiaohongshu, weibo, twitter). Up to 3 sites are queried in parallel; per-site failures are returned in stats.failed without aborting the whole request.\n\n**不用于通用浏览器操作**（页面交互、点击、填表、导航等请用浏览器工具）。',
       inputSchema: {
         query: z.string().min(1).describe('Search keywords (non-empty)'),
         platform: z.string().optional().describe('Site name (bilibili|youtube|douyin|tiktok|xiaohongshu|weibo|twitter), "all", or omit for the default 3 sites'),
@@ -397,9 +398,9 @@ export function createMcpServer(deps: Deps, ctx: ServerCtx = { clientHost: null 
   // (1-hour TTL, see GET /files/:id route). Douyin resolves its signed media
   // URL in Camofox first, then downloads it with curl through the configured
   // proxy. Other platforms use yt-dlp with Camofox cookies injected.
-  server.registerTool('video_download',
+  server.registerTool('opencli_video_download',
     {
-      description: 'Download 1-3 video URLs to a temp file inside the container. Returns a temporary HTTPS URL the client can GET to fetch the bytes. Files are deleted after 1 hour. Douyin URLs resolve media in Camofox and download through the configured proxy; other platforms use yt-dlp with Camofox cookies injected automatically.',
+      description: 'OpenCLI 社交媒体专用视频下载——通过 yt-dlp 走代理下载社交平台视频。Download 1-3 video URLs to a temp file inside the container. Returns a temporary HTTPS URL the client can GET to fetch the bytes. Files are deleted after 1 hour. Douyin URLs resolve media in Camofox and download through the configured proxy; other platforms use yt-dlp with Camofox cookies injected automatically.\n\n**不用于通用浏览器操作**（页面交互、点击、填表、导航等请用浏览器工具）。',
       inputSchema: {
         urls: z.array(z.string().url()).min(1).max(3).describe('1-3 video URLs to download in parallel'),
         quality: z.enum(['best', '1080p', '720p', '480p', 'worst']).optional().describe('Video quality: a height cap (1080p/720p/480p), the lowest combined stream (worst), or the legacy `best` sentinel (also 1080p). Default 720p.'),
