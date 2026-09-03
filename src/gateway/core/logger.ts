@@ -1,4 +1,5 @@
 import { appendFileSync, mkdirSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 /**
@@ -9,12 +10,13 @@ import { join } from 'node:path';
  * crash" class of failures seen with supervisord /dev/stdout).
  *
  * Config via env:
- *   GATEWAY_LOG_DIR   — directory for gateway.log (default /var/log/gateway).
+ *   GATEWAY_LOG_DIR   — directory for gateway.log (default $HOME/.camofox/gateway/log).
  *                       Empty string disables file logging (stdout only).
  *   GATEWAY_LOG_LEVEL — debug|info|warn|error (default info).
  */
 type Level = 'debug' | 'info' | 'warn' | 'error';
 const ORDER: Record<Level, number> = { debug: 10, info: 20, warn: 30, error: 40 };
+const DEFAULT_LOG_DIR = join(homedir(), '.camofox', 'gateway', 'log');
 
 let logFile: string | null = null;
 let minLevel = ORDER.info;
@@ -25,7 +27,7 @@ export function initLogger(env: NodeJS.ProcessEnv): void {
   minLevel = ORDER[lvl] ?? ORDER.info;
 
   const dirRaw = env.GATEWAY_LOG_DIR?.trim();
-  const dir = dirRaw === undefined ? '/var/log/gateway' : dirRaw;
+  const dir = dirRaw === undefined ? DEFAULT_LOG_DIR : dirRaw;
   if (!dir) { logFile = null; return; } // explicitly disabled
   try {
     mkdirSync(dir, { recursive: true });

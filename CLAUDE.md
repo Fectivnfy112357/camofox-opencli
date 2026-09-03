@@ -89,14 +89,16 @@ For each URL:
 3. Spawn `yt-dlp` with `--cookies <cookieFilePath>`, `--proxy <cfg.proxyUrl>`, the chosen format selector, and `-o <outputDir>/video_<uuid>.%(ext)s`.
 4. Register the resulting file with `TempStore` and return a `/files/<id>.<ext>` URL with 1-hour TTL.
 
-### Why two host bind-mounts (cookieDir vs outputDir)
+### Why cookieDir and outputDir are separate (still applies under the new layout)
 
-Decoupling matters:
+The container side still keeps `cookieDir` and `outputDir` distinct — they have different owners (yt-dlp writes `outputDir`, the cookie staging layer writes `cookieDir`) and different access patterns. But the **host** side no longer needs two separate bind-mounts: both live under the same `./data/gateway/{cookies,tmp}/` tree, so the single `./data:/home/node/.camofox` mount in `docker-compose.yml` covers them.
 
-- `./data/download → /opt/gateway/tmp`: downloaded video files (visible on the host).
-- `./data/cookies → /opt/gateway/cookies`: per-request Netscape cookie staging files (also visible on the host for debugging). Kept in its own directory so users don't accidentally treat cookies as videos.
+Defaults baked into `Config` (see `src/gateway/core/config.ts`):
+- `cookieDir` → `$HOME/.camofox/gateway/cookies` → host `./data/gateway/cookies/`
+- `outputDir` → `$HOME/.camofox/gateway/tmp` → host `./data/gateway/tmp/`
+- `logDir` → `$HOME/.camofox/gateway/log` → host `./data/gateway/log/`
 
-Both env vars are read from `GATEWAY_OUTPUT_DIR` / `GATEWAY_COOKIE_DIR` in `docker-compose.yml`. Defaults baked into Config: `/opt/gateway/tmp` and `/opt/gateway/cookies`.
+Override any of them via `GATEWAY_COOKIE_DIR` / `GATEWAY_OUTPUT_DIR` / `GATEWAY_LOG_DIR` env vars in `.env` or `docker-compose.yml`.
 
 ### Proxy forwarding
 
@@ -112,15 +114,20 @@ If you change yt-dlp version or the deno install, both are pinned in `Dockerfile
 
 The image is published to **ghcr.io/fectivnfy112357/camofox-opencli** (latest + version tag) by `.github/workflows/publish.yml` triggered on every `v*` tag. `Dockerfile.publish` is a 4-stage BuildKit build that clones `camofox-browser` and `opencli` from their sibling repos via named BuildKit contexts (no submodules in CI).
 
-Local `docker-compose.yml` defaults to `ghcr.io/fectivnfy112357/camofox-opencli:latest` (build block commented out). Mounted host directories:
+Local `docker-compose.yml` defaults to `ghcr.io/fectivnfy112357/camofox-opencli:latest` (build block commented out). A single host bind-mount covers every persisted path:
 
 ```yaml
 volumes:
-  - ./data:/home/node/.camofox           # browser profiles, login state
-  - ./data/log:/var/log/gateway          # JSONL + supervisor stderr/stdout
-  - ./data/download:/opt/gateway/tmp     # downloaded videos
-  - ./data/cookies:/opt/gateway/cookies  # per-request cookie staging
+  - ./data:/home/node/.camofox    # single host tree: browser state + gateway data
 ```
+
+Host-side layout under `./data/`:
+- `profiles/<hash>/` — browser profile (cookies, localStorage, login state) — also where the JSON `storage-state.json` lives
+- `cookies/` — explicit cookie exports via Camofox's `GET /sessions/<userId>/cookies` API
+- `downloads/` — browser download folder
+- `gateway/log/` — JSONL `gateway.log` + supervisord stdout/stderr capture
+- `gateway/tmp/` — yt-dlp video downloads (1h TTL, swept every 10 min)
+- `gateway/cookies/` — per-request Netscape cookie staging
 
 ### Deploying a code change
 
@@ -128,14 +135,13 @@ The repo has two deployment speeds:
 
 **Slow (CI, ~7 min):** commit, push, tag with `vX.Y.Z`, push tag. CI builds, pushes to ghcr, server pulls via `docker compose pull camofox && docker compose up -d --force-recreate camofox`. Use this for changes that need to be in the published image (Dockerfile, new deps, fixes that ship to other users).
 
-**Fast (scp into container, seconds):** commit + push first, then `npm run build` locally, `scp dist/<changed>.js` to host, `docker cp` into the running container, kill the affected process so supervisord's autorestart picks up the new bytes. Cookie of the gateway lives at `/opt/gateway/...` in the image. **Caveat**: if you then `docker compose pull && up -d --force-recreate`, the image layer overwrites your docker cp'd files. The next CI build + pull will restore your new code.
+**Fast (scp into container, seconds):** commit + push first, then `npm run build` locally, `scp dist/<changed>.js` to host, `docker cp` into the running container, kill the affected process so supervisord's autorestart picks up the new bytes. **Caveat**: if you then `docker compose pull && up -d --force-recreate`, the image layer overwrites your docker cp'd files. The next CI build + pull will restore your new code.
 
 ### Configuration
 
 Key `.env` / docker-compose env:
-- `GATEWAY_API_KEY` — required Bearer on `/mcp`, `/sites/*`, `/run`, `/login`, `/files/:id`
+- `GATEWAY_API_KEY` — required Bearer on `/mcp`, `/sites/*`, `/run`, `/files/:id`
 - `CAMOFOX_USER_ID=fectivnfy` — which logged-in browser profile the gateway uses for cookies (`GET /sessions/fectivnfy/cookies`)
-- `GATEWAY_OUTPUT_DIR=/opt/gateway/tmp` (bind-mount of `./data/download`)
-- `GATEWAY_COOKIE_DIR=/opt/gateway/cookies` (bind-mount of `./data/cookies`)
+- `GATEWAY_OUTPUT_DIR` / `GATEWAY_COOKIE_DIR` / `GATEWAY_LOG_DIR` — optional overrides; defaults resolve to `$HOME/.camofox/gateway/{tmp,cookies,log}` which all live under the single `./data` bind-mount
 - `PROXY_HOST` / `PROXY_PORT` (host.docker.internal:20172) — used by `cfg.proxyUrl` to forward yt-dlp through v2raya
 - `NAVIGATE_TIMEOUT_MS=90000` — VNC pages over the v2raya tunnel can take 30-45s to render

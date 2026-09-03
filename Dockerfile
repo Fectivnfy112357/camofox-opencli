@@ -280,9 +280,17 @@ RUN cd /opt/gateway && npm install --omit=dev --no-audit --no-fund \
 WORKDIR /opt/camofox
 
 # Persistent data paths — bind-mount the host's ./data directory here so
-# browser profiles, cookies, downloads, and VNC tokens survive rebuilds.
-RUN mkdir -p /home/node/.camofox/profiles /home/node/.camofox/downloads /var/log/gateway /opt/gateway/tmp \
- && chown -R node:node /home/node/.camofox /var/log/gateway /opt/gateway
+# browser profiles, cookies, downloads, gateway logs, video tmp files, and
+# per-request cookie staging all live under the same host tree. The
+# ./data:/home/node/.camofox mount in docker-compose.yml is the only
+# volume wiring needed.
+RUN mkdir -p \
+        /home/node/.camofox/profiles \
+        /home/node/.camofox/downloads \
+        /home/node/.camofox/gateway/log \
+        /home/node/.camofox/gateway/tmp \
+        /home/node/.camofox/gateway/cookies \
+ && chown -R node:node /home/node/.camofox
 
 # Expose the opencli CLI on PATH so `opencli <site> <command>` works
 # from a `docker exec` shell and matches what the gateway spawns.
@@ -319,7 +327,7 @@ EXPOSE 9377 6080 19825 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD curl -fsS http://localhost:9377/health || exit 1
 
-VOLUME ["/home/node/.camofox", "/var/log/gateway"]
+VOLUME ["/home/node/.camofox"]
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisor/conf.d/camofox-opencli.conf"]

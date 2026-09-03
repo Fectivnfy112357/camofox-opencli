@@ -1,6 +1,6 @@
 {
   "name": "camofox-opencli",
-  "version": "0.2.1",
+  "version": "0.3.4",
   "description": "OpenCLI Browser Bridge (shim) + HTTP/MCP Gateway exposing 173+ site adapters to external agents",
   "type": "module",
   "main": "dist/gateway/index.js",

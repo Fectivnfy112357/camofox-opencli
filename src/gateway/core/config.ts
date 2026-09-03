@@ -1,3 +1,6 @@
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
 export interface Config {
   port: number;
   apiKey: string | null;
@@ -6,18 +9,19 @@ export interface Config {
   camofoxUrl: string;
   camofoxApiKey: string | null;
   camofoxUserId: string;
-  /** Directory for cookie files, downloaded videos, etc.
-   *  Defaults to /tmp because the gateway process's cwd is unreliable under
-   *  supervisord (no `directory=` set) and `./tmp` would resolve to `/tmp`
-   *  only by accident. Override with GATEWAY_TMP_DIR. */
-  tmpDir: string;
   /** Directory for short-lived cookie staging files (one Netscape-formatted
-   *  blob per video_download call, consumed by yt-dlp via `--cookies`).
-   *  Defaults to /tmp. */
+   *  blob per video_download call, consumed by yt-dlp via `--cookies`). */
   cookieDir: string;
-  /** Directory yt-dlp writes downloaded videos into. Independent from
-   *  cookieDir so a host bind-mount on this path doesn't expose cookies. */
+  /** Directory yt-dlp writes downloaded videos into. Shares the temp tree
+   *  with `tmpDir` so the TempStore TTL sweep cleans up both. Independent
+   *  from `cookieDir` so a host bind-mount on this path doesn't expose
+   *  cookies. */
   outputDir: string;
+  /** Directory for misc gateway temp files (e.g. TempStore entries).
+   *  Replaces the old `/tmp` default, which was unreliable under
+   *  supervisord (no `directory=` set, so `./tmp` resolved to `/tmp` by
+   *  accident). Now lives under the same bind-mount as everything else. */
+  tmpDir: string;
   /** Directory for the JSONL gateway log file. */
   logDir: string;
   logLevel: 'debug' | 'info' | 'warn' | 'error';
@@ -29,6 +33,12 @@ export interface Config {
   proxyUrl: string | null;
 }
 
+/** Root directory for all gateway-managed data (logs, temp files, cookie
+ *  staging). Lives under $HOME/.camofox/ so the single `./data` bind-mount
+ *  in docker-compose.yml covers it — no separate volume needed and no
+ *  GATEWAY_*_DIR env vars to keep in sync. */
+const GATEWAY_ROOT = join(homedir(), '.camofox', 'gateway');
+
 export function loadConfig(env: NodeJS.ProcessEnv): Config {
   return {
     port: Number(env.GATEWAY_PORT) || 8080,
@@ -38,10 +48,10 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     camofoxUrl: (env.CAMOFOX_URL?.trim() || 'http://localhost:9377').replace(/\/$/, ''),
     camofoxApiKey: env.CAMOFOX_API_KEY?.trim() || null,
     camofoxUserId: env.CAMOFOX_USER_ID?.trim() || 'default',
-    tmpDir: env.GATEWAY_TMP_DIR?.trim() || '/tmp',
-    cookieDir: env.GATEWAY_COOKIE_DIR?.trim() || '/opt/gateway/cookies',
-    outputDir: env.GATEWAY_OUTPUT_DIR?.trim() || '/opt/gateway/tmp',
-    logDir: env.GATEWAY_LOG_DIR?.trim() || '/var/log/gateway',
+    cookieDir: env.GATEWAY_COOKIE_DIR?.trim() || join(GATEWAY_ROOT, 'cookies'),
+    outputDir: env.GATEWAY_OUTPUT_DIR?.trim() || join(GATEWAY_ROOT, 'tmp'),
+    tmpDir: env.GATEWAY_TMP_DIR?.trim() || join(GATEWAY_ROOT, 'tmp'),
+    logDir: env.GATEWAY_LOG_DIR?.trim() || join(GATEWAY_ROOT, 'log'),
     logLevel: (env.GATEWAY_LOG_LEVEL?.trim() as 'debug' | 'info' | 'warn' | 'error') || 'info',
     proxyUrl: buildProxyUrl(env.PROXY_HOST, env.PROXY_PORT),
   };
