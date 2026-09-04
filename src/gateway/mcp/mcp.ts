@@ -361,10 +361,6 @@ export function createMcpServer(deps: Deps, ctx: ServerCtx = { clientHost: null 
     },
     async ({ site, query, limit, extras }) => handleSearch(deps, site, query, limit, extras ?? {}, ctx.clientHost));
 
-  server.registerTool('opencli_doctor',
-    { description: 'OpenCLI 工具：运行 opencli doctor 做社交媒体适配器自检。\n\n**不用于通用浏览器操作**（页面交互、点击、填表、导航等请用浏览器工具）。', inputSchema: {} },
-    async () => runCmd(deps, 'doctor', '', {}, ctx.clientHost));
-
   // video_search: cross-platform search fan-out (3 concurrent sites).
   // Supported platform values: bilibili, youtube, douyin, tiktok,
   // xiaohongshu, weibo, twitter, "all" (all 7), or omit (default 3).

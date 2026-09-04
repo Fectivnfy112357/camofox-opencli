@@ -27,15 +27,15 @@ const cfg = loadConfig(process.env);
 // DEV_MOCK_AUTH is truthy — keeps the Claude Code MCP client config minimal.
 if (!process.env.DEV_MOCK_AUTH) cfg.apiKey = null;
 // Manifest path may not exist locally; fall back to a minimal stub so the
-// gateway still boots. Manifest-driven tools (run_command, <site>_command)
-// will 400 on unknown sites, but browser/doctor/list_sites/site_help/login
-// all work without manifest data.
+// gateway still boots. Manifest-driven tools (opencli_run_command,
+// <site>_command) will 400 on unknown sites, but browser / list_sites /
+// site_help / search / login all work without manifest data.
 let manifest;
 try {
   manifest = loadManifest(cfg.manifestPath);
 } catch (e) {
   console.warn(`[dev-mock] manifest load failed: ${(e as Error).message}`);
-  console.warn('[dev-mock] using empty manifest — only browser/doctor/list_sites/login work');
+  console.warn('[dev-mock] using empty manifest — only browser / list_sites / site_help / search / login work');
   manifest = new (await import('../core/manifest.js')).Manifest([]);
 }
 
