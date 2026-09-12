@@ -18,8 +18,8 @@ services:
     #     # siblings happen to live elsewhere.
     #     camofox-browser: ${CAMOFOX_BROWSER_DIR:-./camofox-browser}
     #     opencli:         ${OPENCLI_DIR:-./opencli}
-    #   # The Dockerfile sets http_proxy=http://host.docker.internal:20172 so
-    #   # build-stage apt/curl/npm go through the host's v2raya. Build
+    #   # The Dockerfile sets http_proxy=http://host.docker.internal:7890 so
+    #   # build-stage apt/curl/npm go through the host's mihomo. Build
     #   # containers need their own extra_hosts mapping (the one in the
     #   # service block below only applies to the runtime container).
     #   extra_hosts:
@@ -28,7 +28,7 @@ services:
     restart: unless-stopped
 
     # extra_hosts is also needed at runtime: the Camofox browser connects
-    # back to the host's v2raya at host.docker.internal:20172 for HTTPS
+    # back to the host's mihomo at host.docker.internal:7890 for HTTPS
     # traffic, and the gateway's yt-dlp invocation uses the same proxy.
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -64,7 +64,7 @@ services:
       # websockify listener.
       VNC_BIND: "0.0.0.0"
       PROXY_HOST: "host.docker.internal"
-      PROXY_PORT: "20172"
+      PROXY_PORT: "7890"
       # Pin camoufox-js to the pre-baked cache directory. The Dockerfile
       # cb-build stage unzips the Camoufox binary into
       # /home/node/.cache/camoufox/. jo-inc reads the cache path from
@@ -74,21 +74,44 @@ services:
       # set XDG_CACHE_HOME explicitly to make the contract obvious and
       # immune to changes in supervisord's HOME.
       XDG_CACHE_HOME: "/home/node/.cache"
-      # Intentionally NO HTTP_PROXY/HTTPS_PROXY here: PROXY_HOST/PORT above
-      # already covers the browser's fingerprint-proxy layer, and the runtime
-      # image carries a pre-populated /home/node/.cache/camoufox (UBO +
-      # version.json + GeoLite2-City.mmdb) so camoufox-js has nothing to fetch
-      # at startup. If a future camoufox-js release starts pulling a new
-      # resource on launch, reintroduce HTTP_PROXY=http://host.docker.internal:20172
-      # — at that point revert with caution and re-add the resources to the
-      # camoufox-bin/ pre-baking step in .github/workflows/publish.yml.
+      # PROXY_HOST/PORT above drives the browser fingerprint-proxy layer.
+      # camoufox-js startup also performs an outbound public-IP lookup and
+      # an optional UBO XPI fetch; camofox-browser routes those through the
+      # upstream proxy by patching the process-global fetch()
+      # (lib/proxy-fetch.js), because Node's native fetch ignores the proxy
+      # env vars on Node 22 (no NODE_USE_ENV_PROXY support).
+      #
+      # The env vars below cover the *other* processes of this aggregate
+      # container:
+      #   - opencli-daemon installs undici's EnvHttpProxyAgent
+      #     (OpenCLI src/node-network.ts -> installNodeNetwork()) and reads
+      #     proxies only from these vars; without them its Node-side
+      #     pipeline fetches (the `page === null` path) and the update check
+      #     leave the container direct and get geo-blocked.
+      #   - curl / wget / yt-dlp / pip inside the container honour them too.
+      # Keep NO_PROXY covering loopback (and the proxy host itself) so the
+      # healthcheck and the opencli <-> camofox IPC stay direct.
+      #
+      # Host mihomo must be reachable at host.docker.internal:7890 for
+      # browser launch to succeed — verified 2026-09-13 while migrating
+      # from v2raya (socks 20170 / http 20171 / rule-http 20172) to
+      # mihomo (mixed-port 7890, redir 7892, tproxy 7893). If camoufox
+      # launch fails with "Failed to get a public proxy IP address from
+      # any API endpoint", check the mihomo outbound node first — not
+      # this file.
+      http_proxy: "http://host.docker.internal:7890"
+      https_proxy: "http://host.docker.internal:7890"
+      HTTP_PROXY: "http://host.docker.internal:7890"
+      HTTPS_PROXY: "http://host.docker.internal:7890"
+      no_proxy: "localhost,127.0.0.1,::1,host.docker.internal,.debian.org,pypi.org,files.pythonhosted.org,github.com"
+      NO_PROXY: "localhost,127.0.0.1,::1,host.docker.internal,.debian.org,pypi.org,files.pythonhosted.org,github.com"
       # Shim
       CAMOFOX_URL: "http://localhost:9377"
       CAMOFOX_USER_ID: "fectivnfy"
       SHIM_PORT: "19825"
       # Give YouTube-style SPA sites room to fully render before we time out
       # the navigation. jo-inc lib/config.js default is 25s; some
-      # results pages take 30-45s over the v2raya tunnel.
+      # results pages take 30-45s over the mihomo tunnel.
       NAVIGATE_TIMEOUT_MS: "90000"
       # Gateway
       GATEWAY_PORT: "8080"
@@ -121,7 +144,7 @@ services:
       retries: 3
 
 # Network with IPv6 enabled so camoufox-js's impit (hyper-based) can reach
-# the v2raya proxy through the IPv6 address that Docker's embedded DNS
+# the mihomo proxy through the IPv6 address that Docker's embedded DNS
 # returns for host.docker.internal. Without IPv6, impit locked onto the
 # unreachable IPv6 address and every browser launch failed with
 # "Failed to get a public proxy IP address from any API endpoint".

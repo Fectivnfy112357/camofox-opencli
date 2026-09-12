@@ -32,11 +32,11 @@ RUN echo 'precedence ::ffff:0:0/96  100' >> /etc/gai.conf
 # apt/curl/npm use the proxy explicitly. no_*.debian.org is whitelisted
 # (bypassed) so the cache, lists, and GPG keys resolve directly via the
 # local bridge — saving the proxy from a few hundred small requests.
-ENV http_proxy=http://host.docker.internal:20172 \
-    https_proxy=http://host.docker.internal:20172 \
-    ftp_proxy=http://host.docker.internal:20172 \
-    HTTP_PROXY=http://host.docker.internal:20172 \
-    HTTPS_PROXY=http://host.docker.internal:20172 \
+ENV http_proxy=http://host.docker.internal:7890 \
+    https_proxy=http://host.docker.internal:7890 \
+    ftp_proxy=http://host.docker.internal:7890 \
+    HTTP_PROXY=http://host.docker.internal:7890 \
+    HTTPS_PROXY=http://host.docker.internal:7890 \
     no_proxy=localhost,127.0.0.1,.debian.org,.docker.com,.docker.io \
     NO_PROXY=localhost,127.0.0.1,.debian.org,.docker.com,.docker.io
 
@@ -168,10 +168,10 @@ RUN echo 'precedence ::ffff:0:0/96  100' >> /etc/gai.conf
 # cb-build comment — daemon-level proxies are not inherited by build
 # containers, so we re-declare here. Runtime containers also use these when
 # they need to reach external HTTP endpoints at build time.
-ENV http_proxy=http://host.docker.internal:20172 \
-    https_proxy=http://host.docker.internal:20172 \
-    HTTP_PROXY=http://host.docker.internal:20172 \
-    HTTPS_PROXY=http://host.docker.internal:20172 \
+ENV http_proxy=http://host.docker.internal:7890 \
+    https_proxy=http://host.docker.internal:7890 \
+    HTTP_PROXY=http://host.docker.internal:7890 \
+    HTTPS_PROXY=http://host.docker.internal:7890 \
     no_proxy=localhost,127.0.0.1,.debian.org \
     NO_PROXY=localhost,127.0.0.1,.debian.org
 
