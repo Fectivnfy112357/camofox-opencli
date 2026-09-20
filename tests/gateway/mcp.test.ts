@@ -1,28 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { PRIMARY_SITES, buildSiteToolDescription, createMcpServer } from '../../src/gateway/mcp/mcp.js';
-import { loadManifest } from '../../src/gateway/core/manifest.js';
+import { createMcpServer } from '../../src/gateway/mcp/mcp.js';
 import { type RunResult } from '../../src/gateway/core/opencli.js';
 import * as searchCache from '../../src/gateway/core/search-cache.js';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-
-const here = dirname(fileURLToPath(import.meta.url));
-const manifest = loadManifest(join(here, '..', '__fixtures__', 'manifest.sample.json'));
-
-describe('mcp helpers', () => {
-  it('PRIMARY_SITES has exactly the 9 approved sites', () => {
-    expect(PRIMARY_SITES).toEqual([
-      'xiaohongshu','bilibili','twitter','reddit','zhihu',
-      'douyin','weibo','youtube','hackernews',
-    ]);
-  });
-
-  it('buildSiteToolDescription embeds command names', () => {
-    const d = buildSiteToolDescription(manifest, 'bilibili');
-    expect(d).toContain('search');
-    expect(d).toContain('comment');
-  });
-});
 
 // MCP handler tests: register tools against a real McpServer and invoke the
 // registered handler with the payload shape an MCP client would send.
@@ -42,7 +21,7 @@ describe('MCP run_command tool handler', () => {
     });
     const server = createMcpServer({ cfg: {} as any, manifest: fakeManifest, run });
     const tools = (server as any)._registeredTools as Record<string, { handler: (input: any) => Promise<any> }>;
-    await tools.opencli_run_command.handler({ site: 'kimi', command: 'login', args: {} });
+    await tools.run_command.handler({ site: 'kimi', command: 'login', args: {} });
     expect(run).toHaveBeenCalledWith('kimi', 'login', ['--timeout', '30', '--format', 'json'], { passthrough: false });
   });
 
@@ -61,7 +40,7 @@ describe('MCP run_command tool handler', () => {
     });
     const server = createMcpServer({ cfg: {} as any, manifest: fakeManifest, run });
     const tools = (server as any)._registeredTools as Record<string, { handler: (input: any) => Promise<any> }>;
-    await tools.opencli_run_command.handler({ site: 'kimi', command: 'login', args: { timeout: 90 } });
+    await tools.run_command.handler({ site: 'kimi', command: 'login', args: { timeout: 90 } });
     expect(run).toHaveBeenCalledWith('kimi', 'login', ['--timeout', '90', '--format', 'json'], { passthrough: false });
   });
 });
@@ -108,7 +87,7 @@ describe('MCP search tool handler', () => {
     const run = vi.fn(async (_s: string, _c: string, argv: string[]) => ({ ok: true, data: { argv } }));
     const server = createMcpServer({ cfg: {} as any, manifest: fullManifest, run });
     const t = (server as any)._registeredTools as any;
-    const r = await t.opencli_search.handler({ site: 'bilibili', query: 'Kimi K3' });
+    const r = await t.search.handler({ site: 'bilibili', query: 'Kimi K3' });
     expect(run).toHaveBeenCalledWith('bilibili', 'search', ['Kimi K3', '--format', 'json'], { passthrough: false });
     expect(parseBody(r).argv).toEqual(['Kimi K3', '--format', 'json']);
   });
@@ -134,7 +113,7 @@ describe('MCP search tool handler', () => {
     const run = vi.fn(async () => ({ ok: true, data: { ok: true } }));
     const server = createMcpServer({ cfg: {} as any, manifest: fullManifest, run });
     const t = (server as any)._registeredTools as any;
-    await t.opencli_search.handler({ site: 'douyin', query: 'autonomous' });
+    await t.search.handler({ site: 'douyin', query: 'autonomous' });
     expect(run).toHaveBeenCalledWith('douyin', 'search', ['autonomous', '--format', 'json'], { passthrough: false });
   });
 
@@ -162,7 +141,7 @@ describe('MCP search tool handler', () => {
     const run = vi.fn(async () => ({ ok: true, data: {} }));
     const server = createMcpServer({ cfg: {} as any, manifest: fullManifest, run });
     const t = (server as any)._registeredTools as any;
-    await t.opencli_search.handler({ site: 'youtube', query: 'kimi', limit: 10 });
+    await t.search.handler({ site: 'youtube', query: 'kimi', limit: 10 });
     expect(run).toHaveBeenCalledWith('youtube', 'search',
       ['kimi', '--limit', '10', '--format', 'json'], { passthrough: false });
   });
@@ -184,7 +163,7 @@ describe('MCP search tool handler', () => {
     const run = vi.fn();
     const server = createMcpServer({ cfg: {} as any, manifest: fullManifest, run });
     const t = (server as any)._registeredTools as any;
-    const r = await t.opencli_search.handler({ site: 'zhihu', query: 'kimi', extras: { foo: 'bar' } });
+    const r = await t.search.handler({ site: 'zhihu', query: 'kimi', extras: { foo: 'bar' } });
     expect(run).not.toHaveBeenCalled();
     const body = parseBody(r);
     expect(body.data.error.code).toBe('UNKNOWN_ARGS');
@@ -202,7 +181,7 @@ describe('MCP search tool handler', () => {
     const run = vi.fn();
     const server = createMcpServer({ cfg: {} as any, manifest: fullManifest, run });
     const t = (server as any)._registeredTools as any;
-    const r = await t.opencli_search.handler({ site: 'kimi', query: 'k3' });
+    const r = await t.search.handler({ site: 'kimi', query: 'k3' });
     expect(run).not.toHaveBeenCalled();
     const body = parseBody(r);
     expect(body.data.error.code).toBe('NO_SEARCH_COMMAND');

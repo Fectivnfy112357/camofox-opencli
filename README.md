@@ -122,9 +122,8 @@ The container also runs an **opencli gateway** (`:8080`) that exposes all 163+ p
 
 ### Tools exposed via MCP
 
-- **Generic**: `list_sites`, `site_help`, `run_command`, `browser`, `login`, `doctor`
-- **Per-site** for 10 primary platforms (each description embeds its own command list): `xiaohongshu_command`, `bilibili_command`, `twitter_command`, `reddit_command`, `zhihu_command`, `douyin_command`, `weibo_command`, `youtube_command`, `hackernews_command`, `github_command`
-- All other ~160 sites are reachable through `run_command` + `site_help`
+- **Generic**: `list_sites`, `site_help`, `run_command`, `search`, `video_download`, `browser`, `login`, `doctor`
+- All ~170 sites are reachable through `run_command` + `site_help` (or `search` for cross-site content search)
 
 ### Connect an MCP client
 

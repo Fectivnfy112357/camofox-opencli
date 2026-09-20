@@ -123,6 +123,12 @@ ENV http_proxy=${http_proxy} \
 # `yt-dlp --list-impersonate-targets`.
 RUN pip3 install --break-system-packages --no-cache-dir -U "yt-dlp[curl-cffi]>=2026.7.0" "yt-dlp-ejs"
 
+# `opencli_video_download` uses this launcher instead of the plain yt-dlp
+# executable. It excludes yt-dlp's urllib request handler, guaranteeing the
+# endpoint uses curl_cffi without changing standalone yt-dlp usage in the image.
+COPY scripts/yt-dlp-curl-cffi.py /usr/local/bin/yt-dlp-curl-cffi
+RUN chmod 755 /usr/local/bin/yt-dlp-curl-cffi
+
 # Install deno for YouTube EJS challenge solving. The `yt-dlp-ejs` wheel
 # (installed above) ships the pre-compiled solver modules, so this is
 # only the JS runtime yt-dlp calls into — no GitHub fetch needed.

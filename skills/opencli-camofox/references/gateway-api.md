@@ -23,9 +23,7 @@ Envelope: `{ok: bool, data?: any, error?: {code, message}}`.
 
 ## MCP tools
 - Generic: `list_sites(q?)`, `site_help(site)`, `run_command(site,command,args)`,
-  `browser(action,args)`, `login(url?)`, `doctor()`
-- Primary-site direct tools (embed their command list in the description):
-  `xiaohongshu_command, bilibili_command, twitter_command, reddit_command,
-  zhihu_command, douyin_command, weibo_command, youtube_command,
-  hackernews_command, github_command` — each takes `{command, args}`.
-- Other ~160 sites: use `list_sites` → `site_help` → `run_command`.
+  `search(site,query,limit?,extras?)`,
+  `video_download(urls,quality?)`, `browser(action,args)`, `login(url?)`, `doctor()`
+- All ~170 sites: use `list_sites` → `site_help` → `run_command` (or `search`
+  for cross-site content search).

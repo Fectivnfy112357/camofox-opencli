@@ -216,6 +216,12 @@ RUN yt-dlp --version || true \
     && pip3 install --break-system-packages --no-cache-dir -U "yt-dlp[curl-cffi]>=2026.7.0" "yt-dlp-ejs" 2>/dev/null || true \
     && yt-dlp --version || true
 
+# `opencli_video_download` uses this launcher instead of the plain yt-dlp
+# executable. It excludes yt-dlp's urllib request handler, guaranteeing the
+# endpoint uses curl_cffi without changing standalone yt-dlp usage in the image.
+COPY scripts/yt-dlp-curl-cffi.py /usr/local/bin/yt-dlp-curl-cffi
+RUN chmod 755 /usr/local/bin/yt-dlp-curl-cffi
+
 # deno: yt-dlp's EJS (External JavaScript Solver) for YouTube signature
 # extraction. Without a JS runtime yt-dlp falls back to "Some formats may be
 # missing" / "Requested format is not available" because YouTube's signature

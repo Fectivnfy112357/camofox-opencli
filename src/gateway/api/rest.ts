@@ -6,7 +6,7 @@ import type { Manifest } from '../core/manifest.js';
 import { buildArgs, buildRawArgs, PASSTHROUGH_SITES, type RunResult } from '../core/opencli.js';
 import { log } from '../core/logger.js';
 import type { TempStore } from '../video/temp-store.js';
-import { runVideoSearch, runVideoDownload } from '../video/video-handlers.js';
+import { runVideoDownload } from '../video/video-handlers.js';
 import type { VideoSubsystem } from '../mcp/mcp.js';
 
 export interface Deps {
@@ -56,7 +56,6 @@ function mimeFor(filename: string): string {
 export function createRestHandler(
   deps: Deps,
   video?: {
-    search: typeof import('../video/video-handlers.js').runVideoSearch;
     download: typeof import('../video/video-handlers.js').runVideoDownload;
     subsystem: import('../mcp/mcp.js').VideoSubsystem;
   },
@@ -183,33 +182,6 @@ export function createRestHandler(
         }
         log.info('rest.run.done', { site, command, ok: true });
         return ok(res, r.data);
-      }
-      if (method === 'POST' && path === '/video/search') {
-        if (!video) return err(res, 503, 'unavailable', 'video subsystem not configured');
-        const b = await readBody(req);
-        const { query, platform, limit } = b ?? {};
-        if (typeof query !== 'string' || !query.trim()) {
-          return err(res, 400, 'bad_args', 'query is required');
-        }
-        if (limit !== undefined && (typeof limit !== 'number' || limit < 1 || limit > 30)) {
-          return err(res, 400, 'bad_args', 'limit must be 1..30');
-        }
-        if (platform !== undefined && platform !== 'all' && !/^(bilibili|youtube|douyin|tiktok|xiaohongshu|weibo|twitter)$/.test(platform)) {
-          return err(res, 400, 'INVALID_PLATFORM', `unknown platform: ${platform}`);
-        }
-        try {
-          const data = await runVideoSearch(
-            { query, platform, limit },
-            { deps, video: video.subsystem, req, clientHost: extractHost(req) },
-          );
-          return ok(res, data);
-        } catch (e) {
-          const code = (e as { code?: string })?.code ?? 'EMPTY_QUERY';
-          if (code === 'INVALID_PLATFORM') return err(res, 400, code, (e as Error).message);
-          if (code === 'EMPTY_QUERY') return err(res, 400, code, (e as Error).message);
-          log.error('rest.video.search.error', { message: (e as Error).message });
-          return err(res, 500, 'internal', (e as Error).message);
-        }
       }
       if (method === 'POST' && path === '/video/download') {
         if (!video) return err(res, 503, 'unavailable', 'video subsystem not configured');

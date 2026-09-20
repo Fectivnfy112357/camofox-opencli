@@ -58,7 +58,51 @@ export interface DownloadPoolOptions {
    *  evidence to root-cause from /var/log/gateway/ytdlp-runs.log
    *  alone. */
   verbose?: boolean;
+  /** Delay between fresh yt-dlp processes after a transient Bilibili
+   * empty-play-info/412 response. Defaults to one second. */
+  bilibiliRetryDelayMs?: number;
+  /** Delay between fresh yt-dlp processes after a transient YouTube TLS
+   * handshake failure. Defaults to one second. */
+  youtubeRetryDelayMs?: number;
   douyinDownloader?: { download(url: string): Promise<VideoDownloadResult> };
+}
+
+/**
+ * yt-dlp launcher bundled by our runtime image.  It removes yt-dlp's urllib
+ * request handler before running the normal CLI, so every request made by the
+ * yt-dlp path of `video_download` uses curl_cffi.  Keep this separate
+ * from the regular `yt-dlp` command: other programs in the container may
+ * intentionally retain yt-dlp's upstream fallback behaviour.
+ */
+const YTDLP_CURL_CFFI_BIN = 'yt-dlp-curl-cffi';
+
+// Bilibili includes these attribution-only fields in copied share links. On
+// the current Bilibili player API, forwarding them as the webpage Referer can
+// yield an otherwise successful play-info response with an empty format list.
+// Keep functional query parameters (notably `p` for a multipart video) intact.
+const BILIBILI_SHARE_TRACKING_PARAMS = new Set([
+  'spm_id_from',
+  'vd_source',
+  'from_spmid',
+  'share_source',
+  'share_medium',
+  'share_plat',
+  'share_session_id',
+  'share_times',
+  'timestamp',
+  'unique_k',
+]);
+
+function stripBilibiliShareTracking(rawUrl: string): string {
+  const url = new URL(rawUrl);
+  let changed = false;
+  for (const key of BILIBILI_SHARE_TRACKING_PARAMS) {
+    if (url.searchParams.has(key)) {
+      url.searchParams.delete(key);
+      changed = true;
+    }
+  }
+  return changed ? url.toString() : rawUrl;
 }
 
 export class DownloadPool {
@@ -229,6 +273,46 @@ export class DownloadPool {
     const tiktokUa =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
       '(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
+    // Bilibili rejects yt-dlp's webpage fetch with HTTP 412 Precondition Failed
+    // when the request goes through v2raya. Direct comparison tests (root vs
+    // node, with/without proxy, with/without cookies) show:
+    //   - Plain curl with cookies + UA gets 301→200.
+    //   - yt-dlp's urllib handler hitting the same URL gets 412.
+    //   - yt-dlp's --extractor-args "bilibili:api_host=api.bilibili.com"
+    //     bypasses the webpage fetch entirely and routes through B站's JSON
+    //     API (view/detail + pagelist), which is NOT rate-limited the same way.
+    // Direct CLI tests in container confirm this extractor-arg makes
+    // BV1SSgK6bENV download reliably when baseline args give 412.
+    const isBilibiliHost =
+      host === 'bilibili.com' ||
+      host === 'www.bilibili.com' ||
+      host === 'bilivideo.com' ||
+      host === 'www.bilivideo.com' ||
+      host === 'hdslb.com' ||
+      host === 'www.hdslb.com' ||
+      host.endsWith('.bilibili.com') ||
+      host.endsWith('.bilivideo.com') ||
+      host.endsWith('.hdslb.com');
+    const isYoutubeHost =
+      host === 'youtube.com' ||
+      host === 'www.youtube.com' ||
+      host === 'm.youtube.com' ||
+      host === 'youtu.be' ||
+      host.endsWith('.youtube.com');
+    const bilibiliExtractorArgs = isBilibiliHost
+      ? ['--extractor-args', 'bilibili:api_host=api.bilibili.com']
+      : [];
+    const chromeUa =
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+      '(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
+    const userAgentOverride = isTiktokHost || isBilibiliHost ? chromeUa : null;
+    const ytdlpUrl = isBilibiliHost ? stripBilibiliShareTracking(rawUrl) : rawUrl;
+    // The dedicated launcher removes yt-dlp's UrllibRH, so this endpoint still
+    // always uses curl_cffi. Bilibili's play API returns an empty format list
+    // through the configured proxy when curl_cffi is asked to impersonate
+    // Chrome; the same forced curl_cffi transport succeeds without that extra
+    // fingerprint. Other sites retain Chrome impersonation.
+    const impersonateArgs = isBilibiliHost ? [] : ['--impersonate', 'chrome'];
     const args = [
       // --no-progress: keep stderr clean of the carriage-return progress
       // bar that would shred our per-run log entry into a single line.
@@ -244,12 +328,14 @@ export class DownloadPool {
       // stderr. Disable per-deploy by exporting YTDLP_VERBOSE=0 on
       // the gateway process (see DownloadPoolOptions.verbose).
       ...(this.opts.verbose === false ? [] : ['--verbose']),
-      ...(isTiktokHost ? ['--user-agent', tiktokUa] : []),
+      ...impersonateArgs,
+      ...(userAgentOverride ? ['--user-agent', userAgentOverride] : []),
+      ...bilibiliExtractorArgs,
       '--cookies', cookies.cookieFilePath,
       '-o', outputTemplate,
       '-f', formatSel,
       ...(this.opts.proxyUrl ? ['--proxy', this.opts.proxyUrl] : []),
-      rawUrl,
+      ytdlpUrl,
     ];
     log.info('download.ytdlp.spawn', {
       url: rawUrl,
@@ -264,30 +350,57 @@ export class DownloadPool {
       // Do NOT log the full argv in production — cookie path is enough
       // to debug. The rest can be reconstructed from the constants.
     });
-    const res = await this.opts.exec('yt-dlp', args, { cwd: this.outputDir, timeoutMs: 10 * 60 * 1000 });
-    const stderr = res.stderr ?? '';
+    // Bilibili may return HTTP 200 / code 0 with an empty DASH list when its
+    // per-request dm_img risk fingerprint is rejected. YouTube's proxy path
+    // can likewise close a curl_cffi TLS handshake transiently
+    // (SSL_ERROR_SYSCALL), although the browser and curl_cffi can both reach
+    // the same exit. A new yt-dlp process makes a fresh connection, so retry
+    // only these known transient responses and keep the retry budget bounded.
+    const maxAttempts = isBilibiliHost || isYoutubeHost ? 3 : 1;
+    let res: RunResultLike | undefined;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      res = await this.opts.exec(YTDLP_CURL_CFFI_BIN, args, { cwd: this.outputDir, timeoutMs: 10 * 60 * 1000 });
+      const stderr = res.stderr ?? '';
+      const retryable =
+        (isBilibiliHost && /No video formats found|HTTP Error 412: Precondition Failed/i.test(stderr)) ||
+        (isYoutubeHost && /SSL_ERROR_SYSCALL|No video formats found/i.test(stderr));
+      if (res.exitCode === 0 || !retryable || attempt === maxAttempts) break;
+      const delayMs = isBilibiliHost
+        ? this.opts.bilibiliRetryDelayMs ?? 1000
+        : this.opts.youtubeRetryDelayMs ?? 1000;
+      log.warn('download.ytdlp.transient-retry', {
+        url: rawUrl,
+        host,
+        attempt,
+        next_attempt: attempt + 1,
+        delay_ms: delayMs,
+      });
+      if (delayMs > 0) await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+    }
+    const finalRes = res!;
+    const stderr = finalRes.stderr ?? '';
 
-    if (res.exitCode !== 0) {
+    if (finalRes.exitCode !== 0) {
       const code: ErrorCode = /Sign in|login|403/.test(stderr) ? 'LOGIN_REQUIRED' : 'YT_DLP_FAILED';
       log.warn('download.ytdlp.failed', {
-        url: rawUrl, host, quality, exit: res.exitCode, code,
+        url: rawUrl, host, quality, exit: finalRes.exitCode, code,
         stderr_head: stderr.slice(0, 200),
       });
       // Record failure with full stderr. The header carries the exit
       // code so grep "^exit=[^0]" finds this block.
       void this.appendYtdlpLog(
         rawUrl, host, quality, formatSel,
-        proxyInjected, res.exitCode, Date.now() - t0,
+        proxyInjected, finalRes.exitCode, Date.now() - t0,
         null, null, stderr,
       ).catch(() => {});
       return { url: rawUrl, ok: false, error_code: code, error_message: stderr.slice(0, 500) };
     }
     const file = await this.findOutputFile(outputTemplate);
     if (!file) {
-      log.warn('download.ytdlp.no-output', { url: rawUrl, host, quality, exit: res.exitCode });
+      log.warn('download.ytdlp.no-output', { url: rawUrl, host, quality, exit: finalRes.exitCode });
       void this.appendYtdlpLog(
         rawUrl, host, quality, formatSel,
-        proxyInjected, res.exitCode, Date.now() - t0,
+        proxyInjected, finalRes.exitCode, Date.now() - t0,
         null, null, stderr,
       ).catch(() => {});
       return { url: rawUrl, ok: false, error_code: 'YT_DLP_FAILED', error_message: 'output file not found' };
@@ -307,7 +420,7 @@ export class DownloadPool {
     // spot-checks during intermittent failure debugging).
     void this.appendYtdlpLog(
       rawUrl, host, quality, formatSel,
-      proxyInjected, res.exitCode, Date.now() - t0,
+      proxyInjected, finalRes.exitCode, Date.now() - t0,
       file, sizeBytes, stderr,
     ).catch(() => {});
     return {

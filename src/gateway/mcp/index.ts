@@ -5,7 +5,7 @@ import { runOpencli } from '../core/opencli.js';
 import { createRestHandler, type Deps } from '../api/rest.js';
 import { createMcpServer } from './mcp.js';
 import { build as buildSearchCache, size as searchCacheSize } from '../core/search-cache.js';
-import { runVideoSearch, runVideoDownload } from '../video/video-handlers.js';
+import { runVideoDownload } from '../video/video-handlers.js';
 import { getVideoSubsystem } from './mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { initLogger, log } from '../core/logger.js';
@@ -40,7 +40,6 @@ const deps: Deps = {
 };
 
 const rest = createRestHandler(deps, {
-  search: runVideoSearch,
   download: runVideoDownload,
   subsystem: getVideoSubsystem(deps),
 });

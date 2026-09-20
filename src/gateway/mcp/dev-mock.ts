@@ -27,8 +27,8 @@ const cfg = loadConfig(process.env);
 // DEV_MOCK_AUTH is truthy — keeps the Claude Code MCP client config minimal.
 if (!process.env.DEV_MOCK_AUTH) cfg.apiKey = null;
 // Manifest path may not exist locally; fall back to a minimal stub so the
-// gateway still boots. Manifest-driven tools (opencli_run_command,
-// <site>_command) will 400 on unknown sites, but browser / list_sites /
+// gateway still boots. Manifest-driven tools (run_command,
+// search, etc.) will 400 on unknown sites, but browser / list_sites /
 // site_help / search / login all work without manifest data.
 let manifest;
 try {

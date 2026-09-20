@@ -42,7 +42,7 @@ describe('DownloadPool', () => {
 
   it('runs yt-dlp path with cookies file and registers output', async () => {
     const execFn = vi.fn().mockImplementation(async (cmd: string, args: string[]) => {
-      expect(cmd).toBe('yt-dlp');
+      expect(cmd).toBe('yt-dlp-curl-cffi');
       expect(args).toEqual(expect.arrayContaining([expect.stringMatching(/--cookies/), expect.stringMatching(/-o/)]));
       // Simulate yt-dlp writing the file using the template's path
       const tpl = args[args.indexOf('-o') + 1];
@@ -81,6 +81,65 @@ describe('DownloadPool', () => {
     expect(result.ok).toBe(true);
     expect(douyinDownloader.download).toHaveBeenCalledWith('https://www.douyin.com/video/1');
     expect(exec).not.toHaveBeenCalled();
+  });
+
+  it('removes Bilibili share tracking parameters before invoking yt-dlp', async () => {
+    const execFn = vi.fn().mockResolvedValue({ exitCode: 1, stdout: '', stderr: '' });
+    const pool = new DownloadPool({
+      cookieDir: tmpDir, outputDir: tmpDir, tempStore: store, workerCount: 1,
+      fetchCamofoxCookies, exec: execFn,
+    });
+    await pool.downloadOne(
+      'https://www.bilibili.com/video/BV1SSgK6bENV/?spm_id_from=333.1387.list.card_archive.click&vd_source=c6ce7960f6b50bda993fb93e3fb1b42e',
+      'best',
+    );
+    const args = execFn.mock.calls[0][1] as string[];
+    expect(args.at(-1)).toBe('https://www.bilibili.com/video/BV1SSgK6bENV/');
+    expect(args).not.toEqual(expect.arrayContaining(['--impersonate']));
+  });
+
+  it('retries a Bilibili empty play-info response with a fresh yt-dlp process', async () => {
+    let attempts = 0;
+    const execFn = vi.fn().mockImplementation(async (_cmd: string, args: string[]) => {
+      attempts++;
+      if (attempts === 1) {
+        return { exitCode: 1, stdout: '', stderr: 'ERROR: [BiliBili] id: No video formats found!' };
+      }
+      const template = args[args.indexOf('-o') + 1];
+      await fs.writeFile(template.replace('.%(ext)s', '.mp4'), 'recovered-video');
+      return { exitCode: 0, stdout: '', stderr: '' };
+    });
+    const pool = new DownloadPool({
+      cookieDir: tmpDir, outputDir: tmpDir, tempStore: store, workerCount: 1,
+      fetchCamofoxCookies, exec: execFn, bilibiliRetryDelayMs: 0,
+    });
+    const result = await pool.downloadOne('https://www.bilibili.com/video/BV1SSgK6bENV/', 'best');
+    expect(result.ok).toBe(true);
+    expect(execFn).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries a transient YouTube curl_cffi TLS disconnect with a fresh yt-dlp process', async () => {
+    let attempts = 0;
+    const execFn = vi.fn().mockImplementation(async (_cmd: string, args: string[]) => {
+      attempts++;
+      if (attempts === 1) {
+        return {
+          exitCode: 1,
+          stdout: '',
+          stderr: 'ERROR: Unable to download API page: curl: (35) BoringSSL SSL_connect: Connection closed abruptly (SSL_ERROR_SYSCALL)',
+        };
+      }
+      const template = args[args.indexOf('-o') + 1];
+      await fs.writeFile(template.replace('.%(ext)s', '.webm'), 'recovered-video');
+      return { exitCode: 0, stdout: '', stderr: '' };
+    });
+    const pool = new DownloadPool({
+      cookieDir: tmpDir, outputDir: tmpDir, tempStore: store, workerCount: 1,
+      fetchCamofoxCookies, exec: execFn, youtubeRetryDelayMs: 0,
+    });
+    const result = await pool.downloadOne('https://www.youtube.com/watch?v=jNQXAC9IVRw', '480p');
+    expect(result.ok).toBe(true);
+    expect(execFn).toHaveBeenCalledTimes(2);
   });
 
   it('returns YT_DLP_FAILED when yt-dlp exits non-zero', async () => {

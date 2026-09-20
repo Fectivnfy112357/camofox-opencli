@@ -122,9 +122,8 @@ OpenCLI 通过 WebSocket 发送 14 种 `DaemonCommand`，Shim 将它们映射到
 
 ### MCP 工具
 
-- **通用**：`list_sites`、`site_help`、`run_command`、`browser`、`login`、`doctor`
-- **每个站点**（10 个主平台，每个工具的 description 里内嵌命令清单）：`xiaohongshu_command`、`bilibili_command`、`twitter_command`、`reddit_command`、`zhihu_command`、`douyin_command`、`weibo_command`、`youtube_command`、`hackernews_command`、`github_command`
-- 其他约 160 个站点通过 `run_command` + `site_help` 调用
+- **通用**：`list_sites`、`site_help`、`run_command`、`search`、`video_download`、`browser`、`login`、`doctor`
+- 其他约 170 个站点通过 `run_command` + `site_help`（或 `search` 进行跨站点内容搜索）调用
 
 ### 接入 MCP 客户端
 

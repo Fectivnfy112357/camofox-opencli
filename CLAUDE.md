@@ -54,7 +54,7 @@ Single `package.json`, single `tsconfig.json` with `rootDir=src`. tsc emits `dis
 
 ### Gateway (`src/gateway/`)
 - `mcp/index.ts` — HTTP server. `/mcp` creates a **fresh `McpServer` + `StreamableHTTPServerTransport` per request** (stateless mode). JSON-RPC stream interleaving with a shared transport breaks Claude Code's MCP circuit breaker.
-- `mcp/mcp.ts` — site-content tools (`list_sites`, `site_help`, `run_command`, `search`, `login`, `doctor`, `video_search`, `video_download`, plus 10 primary site commands in `PRIMARY_SITES`). Browser primitives are NOT exposed over MCP.
+- `mcp/mcp.ts` — site-content tools (`list_sites`, `site_help`, `run_command`, `search`, `login`, `doctor`, `video_download`). Browser primitives are NOT exposed over MCP; per-site direct commands (`<site>_command`) were removed — every site goes through `run_command` + `site_help`.
 - `video/` — yt-dlp pool. See "Video subsystem" below.
 - `core/opencli.ts` — `runOpencli()` spawns `opencli <site> <command> --format json`.
 - `core/config.ts` — Loads from env. New fields beyond port/apiKey/manifest: `proxyUrl`, `cookieDir`, `outputDir`.
@@ -70,15 +70,7 @@ Single `package.json`, single `tsconfig.json` with `rootDir=src`. tsc emits `dis
 
 ## Video subsystem
 
-The gateway exposes two MCP tools for video: `video_search` and `video_download`. Both fan out via the opencli daemon, but the actual download path is yt-dlp, not the per-site native downloaders.
-
-### `video_search`
-Accepts `query`, `platform` (optional), `limit` (optional, default 10, max 30).
-
-- `platform` omitted → bilibili, youtube, tiktok (DEFAULT_PLATFORMS).
-- `platform="all"` → all 8 sites: bilibili, youtube, douyin, tiktok, instagram, xiaohongshu, weibo, twitter.
-- `platform="<site>"` → just that one.
-- Up to 3 sites queried in parallel; per-site failures land in `stats.failed` without aborting the request.
+The gateway exposes one MCP tool for video: `video_download`. The actual download path is yt-dlp, not the per-site native downloaders.
 
 ### `video_download`
 Accepts `urls` (1-3) and `quality` (optional, default "best" = bv*+ba/b). The legacy "platform" parameter is gone — all routes use yt-dlp uniformly.
