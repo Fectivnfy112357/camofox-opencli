@@ -44,7 +44,7 @@ RUN npm ci --ignore-scripts \
 #   - Camoufox binary from daijro/camoufox (zip name has arch suffix)
 #   - GeoLite2-City.mmdb from P3TERX/GeoLite.mmdb
 #   - version.json synthesized (camoufox-js reads it as a sidecar)
-ARG CAMOUFOX_TAG=v152.0.4-beta.28
+ARG CAMOUFOX_TAG=v152.0.4-beta.30
 RUN mkdir -p /tmp/cb-bin && cd /tmp/cb-bin \
     && curl -fsSL "https://api.github.com/repos/daijro/camoufox/releases/tags/${CAMOUFOX_TAG}" -o rel.json \
     && ASSET_URL=$(python3 -c "import json; d=json.load(open('rel.json')); a=[x['browser_download_url'] for x in d['assets'] if 'lin.x86_64' in x['name']]; print(a[0])") \
