@@ -105,5 +105,5 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
-            CAMOUFOX_TAG=v152.0.4-beta.28
+            CAMOUFOX_TAG=v152.0.4-beta.30
           platforms: linux/amd64
