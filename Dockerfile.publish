@@ -151,6 +151,18 @@ RUN curl -fsSL https://codeload.github.com/novnc/noVNC/tar.gz/refs/heads/master 
 
 COPY --from=cb-build /build/        /opt/camofox/
 COPY --from=cb-build /home/node/.cache/camoufox/ /home/node/.cache/camoufox/
+
+# Bake the default uBlock Origin addon. camoufox-js otherwise downloads it from
+# addons.mozilla.org on first browser launch; when that fetch fails it leaves an
+# empty addons/UBO directory behind and every launch then dies with
+# "manifest.json is missing. Addon path must be a path to an extracted addon".
+# Pre-extracting it here makes first start network-independent.
+RUN mkdir -p /home/node/.cache/camoufox/addons/UBO /tmp/ubo \
+    && curl -fsSL -o /tmp/ubo.xpi "https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi" \
+    && unzip -q /tmp/ubo.xpi -d /home/node/.cache/camoufox/addons/UBO \
+    && test -f /home/node/.cache/camoufox/addons/UBO/manifest.json \
+    && rm -rf /tmp/ubo.xpi /tmp/ubo \
+    && chown -R node:node /home/node/.cache/camoufox
 COPY --from=oc-build /build/        /opt/opencli/
 # tsc emits /build/dist/{shim,gateway}/... mirroring src/. Shim's entry is
 # dist/shim/index.js; gateway's entry is dist/gateway/mcp/index.js (the
