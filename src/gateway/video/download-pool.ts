@@ -302,6 +302,15 @@ export class DownloadPool {
     const bilibiliExtractorArgs = isBilibiliHost
       ? ['--extractor-args', 'bilibili:api_host=api.bilibili.com']
       : [];
+    // YouTube wants a proof-of-origin token when the request comes from a
+    // datacenter IP; without one yt-dlp answers "Sign in to confirm you're not
+    // a bot" even with a valid logged-in cookie file. The bgutil provider runs
+    // inside this image (supervisord [program:pot-provider]) and hands tokens
+    // to yt-dlp through its plugin.
+    const potBaseUrl = process.env.YOUTUBE_POT_BASE_URL ?? 'http://127.0.0.1:4416';
+    const youtubeExtractorArgs = isYoutubeHost
+      ? ['--extractor-args', `youtubepot-bgutilhttp:base_url=${potBaseUrl}`]
+      : [];
     const chromeUa =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
       '(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
@@ -331,6 +340,7 @@ export class DownloadPool {
       ...impersonateArgs,
       ...(userAgentOverride ? ['--user-agent', userAgentOverride] : []),
       ...bilibiliExtractorArgs,
+      ...youtubeExtractorArgs,
       '--cookies', cookies.cookieFilePath,
       '-o', outputTemplate,
       '-f', formatSel,

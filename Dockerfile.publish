@@ -82,6 +82,24 @@ COPY src/ /build/src/
 
 RUN npm ci --ignore-scripts && npm run build
 
+# ──────────────────── Stage 3b: bgutil PO token provider ────────────────────
+# YouTube demands a proof-of-origin token for yt-dlp requests from datacenter
+# IPs; without one the extractor answers "Sign in to confirm you're not a bot"
+# even with a valid logged-in cookie file. This stage builds the provider's
+# HTTP server (bgutil) that the yt-dlp plugin queries on 127.0.0.1:4416.
+FROM node:22-slim AS pot-build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git python3 make g++ ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG BGUTIL_POT_VERSION=2.0.2
+RUN git clone --depth 1 --branch ${BGUTIL_POT_VERSION} \
+        https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git /pot \
+    && cd /pot/server \
+    && npm ci \
+    && npx tsc
+
 # ──────────────────────── Stage 4: runtime ─────────────────────────
 FROM node:22-slim AS runtime
 
@@ -121,7 +139,14 @@ ENV http_proxy=${http_proxy} \
 # fingerprinted by TikTok's anti-bot, and returns a thin/empty format list →
 # "Requested format is not available". Verify with
 # `yt-dlp --list-impersonate-targets`.
-RUN pip3 install --break-system-packages --no-cache-dir -U "yt-dlp[curl-cffi]>=2026.7.0" "yt-dlp-ejs"
+RUN pip3 install --break-system-packages --no-cache-dir -U "yt-dlp[curl-cffi]>=2026.7.0" "yt-dlp-ejs" "bgutil-ytdlp-pot-provider==2.0.2"
+
+# bgutil PO token provider server (built in stage 3b). The yt-dlp plugin
+# installed above talks to it over http://127.0.0.1:4416; supervisord runs it.
+COPY --from=pot-build /pot/server/build          /opt/bgutil-pot/build
+COPY --from=pot-build /pot/server/node_modules   /opt/bgutil-pot/node_modules
+COPY --from=pot-build /pot/server/package.json   /opt/bgutil-pot/package.json
+RUN chown -R node:node /opt/bgutil-pot
 
 # `opencli_video_download` uses this launcher instead of the plain yt-dlp
 # executable. It excludes yt-dlp's urllib request handler, guaranteeing the
